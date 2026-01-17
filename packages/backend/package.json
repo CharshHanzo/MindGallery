@@ -1,0 +1,25 @@
+{
+  "name": "@mindgallery/backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/server.js",
+   "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/multipart": "^9.3.0",
+    "fastify": "^5.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
