@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Image {
+  id          String    @id @default(cuid())
+  filename    String
+  objectKey   String    // 存储中的唯一标识
+  storageType String    @default("minio") // "minio" 或 "local"
+  bucketName  String?   // 仅minio使用
+  fileSize    Int
+  mimeType    String
+  uploadTime  DateTime  @default(now())
+  
+  // AI分析字段
+  description String?
+  tags        String[]
+  vector      Float[]     // pgvector 向量
+  
+  // 元数据
+  width       Int?
+  height      Int?
+  cameraModel String?
+  location    String?
+  takenTime   DateTime?
+  
+  // 索引
+  @@index([uploadTime])
+  @@index([tags])
+}
