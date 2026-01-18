@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d mindgallery"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,10 +26,7 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    command: >
-      sh -c "ollama serve &
-             sleep 5 &&
-             ollama pull moondream:latest"
+    command: serve
     restart: unless-stopped
 
   minio:

@@ -1,0 +1,332 @@
+{
+  "api": {
+    "name": "MindGallery API",
+    "version": "1.0.0",
+    "description": "智能图片管理系统的后端API",
+    "baseUrl": "http://localhost:3000",
+    "environment": {
+      "storageType": "minio",
+      "database": "PostgreSQL + pgvector",
+      "aiService": "Ollama",
+      "fileStorage": "MinIO对象存储"
+    }
+  },
+  "endpoints": {
+    "root": {
+      "method": "GET",
+      "path": "/",
+      "description": "API根路由，返回服务信息和所有可用端点",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": { "type": "string", "example": "MindGallery API" },
+            "version": { "type": "string", "example": "1.0.0" },
+            "endpoints": {
+              "type": "object",
+              "properties": {
+                "health": { "type": "string", "example": "GET /api/health" },
+                "detailedHealth": { "type": "string", "example": "GET /api/health/detailed" },
+                "upload": { "type": "string", "example": "POST /api/upload" },
+                "images": { "type": "string", "example": "GET /api/images" },
+                "imageDetail": { "type": "string", "example": "GET /api/images/:id" },
+                "deleteImage": { "type": "string", "example": "DELETE /api/images/:id" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "healthCheck": {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "简单健康检查，返回服务基本状态",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "example": "ok" },
+            "timestamp": { "type": "string", "example": "2024-01-18T07:22:08.000Z" },
+            "service": { "type": "string", "example": "MindGallery API" }
+          }
+        }
+      }
+    },
+    "detailedHealthCheck": {
+      "method": "GET",
+      "path": "/api/health/detailed",
+      "description": "详细环境检查，验证所有基础设施服务连接状态",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["healthy", "degraded"], "example": "healthy" },
+            "timestamp": { "type": "string", "example": "2024-01-18T07:22:08.000Z" },
+            "checks": {
+              "type": "object",
+              "properties": {
+                "database": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok", "error", "unknown"], "example": "ok" },
+                    "message": { "type": "string", "example": "Database connection successful" }
+                  }
+                },
+                "minio": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok", "error", "skipped", "unknown"], "example": "ok" },
+                    "message": { "type": "string", "example": "MinIO connection successful" }
+                  }
+                },
+                "ollama": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok", "error", "unknown"], "example": "ok" },
+                    "message": { "type": "string", "example": "Ollama connection successful" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "uploadImage": {
+      "method": "POST",
+      "path": "/api/upload",
+      "description": "上传图片文件，支持多存储方案",
+      "contentType": "multipart/form-data",
+      "parameters": {
+        "file": {
+          "type": "file",
+          "required": true,
+          "description": "图片文件，支持常见图片格式",
+          "constraints": {
+            "maxSize": "10MB",
+            "allowedTypes": ["image/jpeg", "image/png", "image/gif", "image/webp"]
+          }
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean", "example": true },
+              "message": { "type": "string", "example": "Image uploaded successfully" },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "example": "550e8400-e29b-41d4-a716-446655440000" },
+                  "filename": { "type": "string", "example": "example.jpg" },
+                  "url": { "type": "string", "example": "http://localhost:9000/images/abc123.jpg" },
+                  "size": { "type": "number", "example": 1024000 },
+                  "uploadTime": { "type": "string", "example": "2024-01-18T07:22:08.000Z" },
+                  "storageType": { "type": "string", "enum": ["minio", "local"], "example": "minio" }
+                }
+              }
+            }
+          }
+        },
+        "error": {
+          "status": 400,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "error": { "type": "string", "example": "Invalid file type" }
+            }
+          }
+        }
+      }
+    },
+    "listImages": {
+      "method": "GET",
+      "path": "/api/images",
+      "description": "获取图片列表，按上传时间倒序排列",
+      "queryParameters": {
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "description": "返回图片数量限制"
+        }
+      },
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean", "example": true },
+            "message": { "type": "string", "example": "Images retrieved successfully" },
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "example": "550e8400-e29b-41d4-a716-446655440000" },
+                  "filename": { "type": "string", "example": "example.jpg" },
+                  "objectKey": { "type": "string", "example": "abc123.jpg" },
+                  "storageType": { "type": "string", "enum": ["minio", "local"], "example": "minio" },
+                  "bucketName": { "type": "string", "example": "images" },
+                  "fileSize": { "type": "number", "example": 1024000 },
+                  "mimeType": { "type": "string", "example": "image/jpeg" },
+                  "url": { "type": "string", "example": "http://localhost:9000/images/abc123.jpg" },
+                  "uploadTime": { "type": "string", "example": "2024-01-18T07:22:08.000Z" },
+                  "description": { "type": "string", "example": "AI生成的图片描述", "nullable": true },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "example": ["风景", "自然", "山脉"]
+                  }
+                }
+              }
+            },
+            "count": { "type": "number", "example": 25 }
+          }
+        }
+      }
+    },
+    "getImageDetail": {
+      "method": "GET",
+      "path": "/api/images/:id",
+      "description": "获取单张图片的详细信息",
+      "pathParameters": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "图片的唯一标识符"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean", "example": true },
+              "message": { "type": "string", "example": "Image retrieved successfully" },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "example": "550e8400-e29b-41d4-a716-446655440000" },
+                  "filename": { "type": "string", "example": "example.jpg" },
+                  "objectKey": { "type": "string", "example": "abc123.jpg" },
+                  "storageType": { "type": "string", "enum": ["minio", "local"], "example": "minio" },
+                  "bucketName": { "type": "string", "example": "images" },
+                  "fileSize": { "type": "number", "example": 1024000 },
+                  "mimeType": { "type": "string", "example": "image/jpeg" },
+                  "url": { "type": "string", "example": "http://localhost:9000/images/abc123.jpg" },
+                  "uploadTime": { "type": "string", "example": "2024-01-18T07:22:08.000Z" },
+                  "description": { "type": "string", "example": "AI生成的图片描述", "nullable": true },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "example": ["风景", "自然", "山脉"]
+                  },
+                  "width": { "type": "number", "example": 1920, "nullable": true },
+                  "height": { "type": "number", "example": 1080, "nullable": true },
+                  "cameraModel": { "type": "string", "example": "Canon EOS R5", "nullable": true },
+                  "location": { "type": "string", "example": "北京市朝阳区", "nullable": true },
+                  "takenTime": { "type": "string", "example": "2024-01-18T07:22:08.000Z", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "error": {
+          "status": 404,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "error": { "type": "string", "example": "Image not found" }
+            }
+          }
+        }
+      }
+    },
+    "deleteImage": {
+      "method": "DELETE",
+      "path": "/api/images/:id",
+      "description": "删除指定的图片文件",
+      "pathParameters": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "要删除的图片的唯一标识符"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean", "example": true },
+              "message": { "type": "string", "example": "Image deleted successfully" }
+            }
+          }
+        },
+        "error": {
+          "status": 404,
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "error": { "type": "string", "example": "Image not found" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "storageConfiguration": {
+    "minio": {
+      "endpoint": "localhost",
+      "port": 9000,
+      "bucket": "images",
+      "accessUrl": "http://localhost:9000/images/{objectKey}",
+      "console": "http://localhost:9001"
+    },
+    "local": {
+      "uploadDir": "./uploads",
+      "accessUrl": "http://localhost:3000/uploads/{objectKey}"
+    }
+  },
+  "errorCodes": {
+    "400": "Bad Request - 请求参数错误",
+    "404": "Not Found - 资源不存在",
+    "500": "Internal Server Error - 服务器内部错误"
+  },
+  "examples": {
+    "uploadRequest": {
+      "curl": "curl -X POST http://localhost:3000/api/upload \\\n               -F 'file=@/path/to/image.jpg' \\\n               -H 'Content-Type: multipart/form-data'",
+      "javascript": "const formData = new FormData();\nformData.append('file', fileInput.files[0]);\n\nfetch('http://localhost:3000/api/upload', {\n  method: 'POST',\n  body: formData\n})"
+    },
+    "listImages": {
+      "curl": "curl -X GET 'http://localhost:3000/api/images?limit=10'",
+      "javascript": "fetch('http://localhost:3000/api/images?limit=10')\n  .then(res => res.json())\n  .then(data => console.log(data));"
+    },
+    "getImageDetail": {
+      "curl": "curl -X GET http://localhost:3000/api/images/550e8400-e29b-41d4-a716-446655440000",
+      "javascript": "fetch('http://localhost:3000/api/images/550e8400-e29b-41d4-a716-446655440000')\n  .then(res => res.json())\n  .then(data => console.log(data));"
+    },
+    "deleteImage": {
+      "curl": "curl -X DELETE http://localhost:3000/api/images/550e8400-e29b-41d4-a716-446655440000",
+      "javascript": "fetch('http://localhost:3000/api/images/550e8400-e29b-41d4-a716-446655440000', {\n  method: 'DELETE'\n})\n  .then(res => res.json())\n  .then(data => console.log(data));"
+    }
+  }
+}
