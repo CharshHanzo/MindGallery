@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart'
 import staticPlugin from '@fastify/static'
 import path from 'path'
 import { uploadRoutes } from './routes/upload.js'
+import { config } from './lib/config.js'
 
 const fastify = Fastify({
   logger: {
@@ -21,7 +22,7 @@ const fastify = Fastify({
 async function setup() {
   // CORS
   await fastify.register(cors, {
-    origin: true,
+    origin: config.server.corsOrigin,
     credentials: true
   })
 
@@ -61,12 +62,11 @@ async function setup() {
 
   // 启动服务器
   try {
-    const port = process.env.PORT ? parseInt(process.env.PORT) : 3000
-    await fastify.listen({ port, host: '0.0.0.0' })
-    console.log(`🚀 服务器运行在 http://localhost:${port}`)
-    console.log(`📁 存储类型: ${process.env.STORAGE_TYPE || 'local'}`)
-    console.log(`🗄️  数据库: ${process.env.DATABASE_URL?.split('@')[1] || 'localhost:5432'}`)
-    console.log(`🤖 AI服务: ${process.env.OLLAMA_URL || 'http://localhost:11434'}`)
+    await fastify.listen({ port: config.server.port, host: '0.0.0.0' })
+    console.log(`🚀 服务器运行在 http://localhost:${config.server.port}`)
+    console.log(`📁 存储类型: ${config.storage.type}`)
+    console.log(`🗄️  数据库: ${config.database.host}:${config.database.port}`)
+    console.log(`🤖 AI服务: ${config.ollama.url}`)
   } catch (err) {
     console.error('启动失败:', err)
     process.exit(1)

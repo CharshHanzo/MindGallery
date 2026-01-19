@@ -16,6 +16,7 @@
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.3.0",
     "@fastify/static": "^9.0.0",
+    "@mindgallery/config": "*",
     "@prisma/client": "^6.19.2",
     "axios": "^1.13.2",
     "fastify": "^5.7.1",
