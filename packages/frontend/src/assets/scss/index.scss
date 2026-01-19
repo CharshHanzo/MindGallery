@@ -1,0 +1,244 @@
+// ============================================
+// MindGallery 主样式文件
+// ============================================
+
+// 导入变量和混合宏
+@import 'variables';
+@import 'mixins';
+
+// 全局样式重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+// 基础样式
+html {
+  font-size: 16px;
+  line-height: $line-height-base;
+}
+
+body {
+  font-family: $font-family-base;
+  font-size: $font-size-base;
+  font-weight: $font-weight-normal;
+  color: $gray-900;
+  background-color: $white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 链接样式
+a {
+  color: $winter-sky-5;
+  text-decoration: none;
+  @include transition(color);
+
+  &:hover {
+    color: $winter-sky-4;
+  }
+}
+
+// 标题样式
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: $spacer * 0.5;
+  font-weight: $font-weight-bold;
+  line-height: 1.2;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+h5 { font-size: 1.25rem; }
+h6 { font-size: 1rem; }
+
+// 段落样式
+p {
+  margin-bottom: $spacer;
+}
+
+// 按钮基础样式
+.btn {
+  display: inline-block;
+  font-weight: $font-weight-normal;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  border: $border-width solid transparent;
+  padding: $spacer * 0.375 $spacer * 0.75;
+  font-size: $font-size-base;
+  line-height: $line-height-base;
+  border-radius: $border-radius;
+  @include transition(all);
+
+  &:focus {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba($winter-sky-5, 0.25);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    pointer-events: none;
+  }
+}
+
+// 按钮变体
+.btn-primary {
+  @include button-variant($primary-color, $primary-color);
+}
+
+.btn-secondary {
+  @include button-variant($secondary-color, $secondary-color);
+}
+
+.btn-success {
+  @include button-variant($success-color, $success-color);
+}
+
+.btn-warning {
+  @include button-variant($warning-color, $warning-color);
+}
+
+.btn-error {
+  @include button-variant($error-color, $error-color);
+}
+
+// 卡片样式
+.card {
+  @include card();
+}
+
+// 布局工具类
+.container {
+  width: 100%;
+  padding-right: $spacer * 0.5;
+  padding-left: $spacer * 0.5;
+  margin-right: auto;
+  margin-left: auto;
+
+  @each $breakpoint, $container-max-width in $container-max-widths {
+    @include media-breakpoint-up($breakpoint) {
+      max-width: $container-max-width;
+    }
+  }
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -$spacer * 0.5;
+  margin-left: -$spacer * 0.5;
+}
+
+.col {
+  flex: 1 0 0%;
+  padding-right: $spacer * 0.5;
+  padding-left: $spacer * 0.5;
+}
+
+// 间距工具类
+@each $prop, $abbrev in (margin: m, padding: p) {
+  @each $size, $length in $spacers {
+    .#{$abbrev}-#{$size} {
+      #{$prop}: $length !important;
+    }
+
+    .#{$abbrev}t-#{$size},
+    .#{$abbrev}y-#{$size} {
+      #{$prop}-top: $length !important;
+    }
+
+    .#{$abbrev}r-#{$size},
+    .#{$abbrev}x-#{$size} {
+      #{$prop}-right: $length !important;
+    }
+
+    .#{$abbrev}b-#{$size},
+    .#{$abbrev}y-#{$size} {
+      #{$prop}-bottom: $length !important;
+    }
+
+    .#{$abbrev}l-#{$size},
+    .#{$abbrev}x-#{$size} {
+      #{$prop}-left: $length !important;
+    }
+  }
+}
+
+// 文本工具类
+.text-center { text-align: center !important; }
+.text-left { text-align: left !important; }
+.text-right { text-align: right !important; }
+
+.text-truncate { @include text-truncate(); }
+
+// 显示/隐藏工具类
+.d-none { display: none !important; }
+.d-block { display: block !important; }
+.d-inline { display: inline !important; }
+.d-inline-block { display: inline-block !important; }
+.d-flex { display: flex !important; }
+
+// 响应式显示类
+@each $breakpoint in map-keys($breakpoints) {
+  @include media-breakpoint-up($breakpoint) {
+    .d-#{$breakpoint}-none { display: none !important; }
+    .d-#{$breakpoint}-block { display: block !important; }
+    .d-#{$breakpoint}-flex { display: flex !important; }
+  }
+}
+
+// MindGallery 特定样式
+.mindgallery-app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, $winter-sky-1 0%, $winter-sky-2 100%);
+}
+
+.upload-area {
+  border: 2px dashed $border-color;
+  border-radius: $border-radius;
+  padding: $spacer * 3;
+  text-align: center;
+  background-color: $gray-100;
+  @include transition(all);
+
+  &:hover {
+    border-color: $winter-sky-5;
+    background-color: lighten($winter-sky-5, 20%);
+  }
+
+  &.drag-over {
+    border-color: $winter-sky-5;
+    background-color: lighten($winter-sky-5, 20%);
+  }
+}
+
+.image-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: $spacer;
+  padding: $spacer;
+}
+
+.image-card {
+  @include card($spacer * 0.75);
+  @include transition(all);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $box-shadow;
+  }
+
+  .image-preview {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: $border-radius;
+  }
+
+  .image-info {
+    padding: $spacer * 0.5 0 0;
+  }
+}

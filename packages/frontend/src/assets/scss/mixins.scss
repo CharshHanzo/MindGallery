@@ -1,0 +1,170 @@
+// ============================================
+// MindGallery SCSS 混合宏
+// ============================================
+
+// 响应式断点混合宏
+@mixin media-breakpoint-up($name, $breakpoints: $breakpoints) {
+  $min: map-get($breakpoints, $name);
+  @if $min {
+    @media (min-width: $min) {
+      @content;
+    }
+  } @else {
+    @content;
+  }
+}
+
+@mixin media-breakpoint-down($name, $breakpoints: $breakpoints) {
+  $max: map-get($breakpoints, $name) - 0.02px;
+  @if $max {
+    @media (max-width: $max) {
+      @content;
+    }
+  } @else {
+    @content;
+  }
+}
+
+@mixin media-breakpoint-between($lower, $upper, $breakpoints: $breakpoints) {
+  $min: map-get($breakpoints, $lower);
+  $max: map-get($breakpoints, $upper) - 0.02px;
+  @if $min != null and $max != null {
+    @media (min-width: $min) and (max-width: $max) {
+      @content;
+    }
+  } @else if $max == null {
+    @include media-breakpoint-up($lower, $breakpoints) {
+      @content;
+    }
+  } @else if $min == null {
+    @include media-breakpoint-down($upper, $breakpoints) {
+      @content;
+    }
+  }
+}
+
+// 文字截断
+@mixin text-truncate() {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 多行文字截断
+@mixin text-truncate-multiline($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// 清除浮动
+@mixin clearfix() {
+  &::after {
+    display: block;
+    clear: both;
+    content: "";
+  }
+}
+
+// 隐藏元素但保持可访问性
+@mixin sr-only() {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// 按钮样式混合宏
+@mixin button-variant($background, $border, $color: $white) {
+  background-color: $background;
+  border-color: $border;
+  color: $color;
+
+  &:hover {
+    background-color: darken($background, 10%);
+    border-color: darken($border, 10%);
+    color: $color;
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 0.2rem rgba($background, 0.25);
+  }
+
+  &:disabled {
+    background-color: $background;
+    border-color: $border;
+    opacity: 0.65;
+  }
+}
+
+// 卡片样式混合宏
+@mixin card($padding: $spacer, $border-radius: $border-radius) {
+  background-color: $white;
+  border: $border-width solid $border-color;
+  border-radius: $border-radius;
+  padding: $padding;
+  box-shadow: $box-shadow-sm;
+
+  .card-header {
+    padding: $padding * 0.5 $padding;
+    background-color: $gray-100;
+    border-bottom: $border-width solid $border-color;
+  }
+
+  .card-body {
+    padding: $padding;
+  }
+
+  .card-footer {
+    padding: $padding * 0.5 $padding;
+    background-color: $gray-100;
+    border-top: $border-width solid $border-color;
+  }
+}
+
+// Flexbox 布局混合宏
+@mixin flex-center() {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@mixin flex-between() {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@mixin flex-column() {
+  display: flex;
+  flex-direction: column;
+}
+
+// 渐变背景
+@mixin gradient-bg($start-color, $end-color, $deg: 45deg) {
+  background-image: linear-gradient($deg, $start-color, $end-color);
+}
+
+// 动画混合宏
+@mixin transition($properties: all, $duration: 0.2s, $timing: ease-in-out) {
+  transition: $properties $duration $timing;
+}
+
+@mixin fade-in($duration: 0.3s) {
+  animation: fadeIn $duration ease-in-out;
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

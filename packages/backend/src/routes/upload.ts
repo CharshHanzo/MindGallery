@@ -48,9 +48,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         }
 
         // 检查MinIO连接
-        if (config.storage.type === 'minio') {
+        if (config.storage.type === 'minio' && config.storage.minio) {
             try {
-                await minioClient.bucketExists(config.storage.minio.bucket)
+                const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
+                await minioClient.bucketExists(minioConfig.bucket)
                 checks.minio = { status: 'ok', message: 'MinIO connection successful' }
             } catch (error) {
                 checks.minio = { status: 'error', message: `MinIO connection failed: ${error}` }
@@ -109,16 +110,17 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             let storageType: string
             let bucketName: string | null = null
             
-            if (config.storage.type === 'minio') {
+            if (config.storage.type === 'minio' && config.storage.minio) {
                 // 使用MinIO存储
                 storageType = 'minio'
-                bucketName = config.storage.minio.bucket
+                const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
+                bucketName = minioConfig.bucket
                 
                 // 上传到MinIO
                 await minioClient.putObject(bucketName, objectKey, fileBuffer)
                 
                 // 生成MinIO访问URL（使用配置的公共访问地址）
-                imageUrl = `http://${config.storage.minio.endpoint}:${config.storage.minio.port}/${bucketName}/${objectKey}`
+                imageUrl = `http://${minioConfig.endpoint}:${minioConfig.port}/${bucketName}/${objectKey}`
             } else {
                 // 使用本地存储
                 storageType = 'local'
@@ -169,9 +171,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             // 添加访问URL
             const imageWithUrl = images.map(img => {
                 let url: string
-                if (img.storageType === 'minio' && img.bucketName) {
+                if (img.storageType === 'minio' && img.bucketName && config.storage.minio) {
                      // MinIO存储的URL（使用配置的公共访问地址）
-                     url = `http://${config.storage.minio.endpoint}:${config.storage.minio.port}/${img.bucketName}/${img.objectKey}`
+                     const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
+                     url = `http://${minioConfig.endpoint}:${minioConfig.port}/${img.bucketName}/${img.objectKey}`
                  } else {
                      // 本地存储的URL
                      url = `/uploads/${img.objectKey}`
@@ -208,9 +211,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             }
 
             let url: string
-            if (image.storageType === 'minio' && image.bucketName) {
+            if (image.storageType === 'minio' && image.bucketName && config.storage.minio) {
                 // MinIO存储的URL（使用配置的公共访问地址）
-                url = `http://${config.storage.minio.endpoint}:${config.storage.minio.port}/${image.bucketName}/${image.objectKey}`
+                const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
+                url = `http://${minioConfig.endpoint}:${minioConfig.port}/${image.bucketName}/${image.objectKey}`
             } else {
                 // 本地存储的URL
                 url = `/uploads/${image.objectKey}`
