@@ -35,4 +35,16 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    port: 5175,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        // 禁用 IPv6，强制使用 IPv4
+        agent: false
+      }
+    }
+  }
 })

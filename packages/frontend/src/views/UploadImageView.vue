@@ -7,8 +7,15 @@
         </template>
 
         <template #extra>
-          <div >
-            <el-button type="primary">上传</el-button>
+          <div>
+            <el-button
+              type="primary"
+              @click="handleUpload"
+              :loading="uploading"
+              :disabled="previewImages.length === 0"
+            >
+              {{ uploading ? '上传中...' : '上传' }}
+            </el-button>
           </div>
         </template>
       </el-page-header>
@@ -16,19 +23,58 @@
     <div class="upload">
       <div class="upload-content">
         <el-upload
+          ref="uploadRef"
           class="upload-demo"
           drag
-          action="https://run.mocky.io/v3/9d059bf9-4660-45f2-925d-ce80ad6c4d15"
-          multiple
+          :auto-upload="false"
+          :multiple="true"
+          :file-list="fileList"
+          :on-change="handleFileChange"
+          :on-remove="handleFileRemove"
+          :before-upload="beforeUpload"
+          :show-file-list="false"
+          accept="image/*"
         >
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">
-            Drop file here or <em>click to upload</em>
+            拖拽图片到此处或<em>点击上传</em>
           </div>
+          <template #tip>
+            <div class="el-upload__tip" style="color: #666; font-size: 12px; margin-top: 8px;">
+              支持 jpg、png、gif、webp 格式，单个文件不超过10MB
+            </div>
+          </template>
         </el-upload>
       </div>
-      <div class="preview">
-        预览区域
+      <div class="preview" v-if="previewImages.length > 0">
+        <div class="preview-title">
+          <span class="text-medium font-600">预览 ({{ previewImages.length }})</span>
+        </div>
+        <div class="preview-grid">
+          <div
+            v-for="(image, index) in previewImages"
+            :key="index"
+            class="preview-item"
+          >
+            <img :src="image.url" :alt="image.name" />
+            <div class="preview-info">
+              <span class="file-name">{{ image.name }}</span>
+              <span class="file-size">{{ formatFileSize(image.size) }}</span>
+            </div>
+            <el-button
+              class="remove-btn"
+              type="danger"
+              size="small"
+              :icon="Close"
+              circle
+              @click="removePreviewImage(index)"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="preview-placeholder" v-else>
+        <el-icon class="placeholder-icon"><Picture /></el-icon>
+        <span class="placeholder-text">📷 选择图片后预览区域将显示图片</span>
       </div>
     </div>
 
@@ -119,11 +165,19 @@
 <script lang="ts" setup>
 import { useRouter } from 'vue-router'
 import { ref, onMounted } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Plus, Close, Picture, UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElLoading } from 'element-plus'
 
 import type { TagInfo } from '@mindgallery/shared/src/types/api'
-import type { CheckboxValueType } from 'element-plus'
+import type { CheckboxValueType, UploadFile} from 'element-plus'
+import { uploadImages } from '@/api'
+
+// 上传相关状态
+const fileList = ref<UploadFile[]>([])
+const previewImages = ref<Array<{url: string, name: string, size: number, file: File}>>([])
+const uploading = ref(false)
+const uploadProgress = ref(0)
+const uploadRef = ref()
 
 const isAdding = ref(false)
 const value = ref<CheckboxValueType[]>([])
@@ -256,6 +310,161 @@ const addCustomTag = () => {
   console.log('添加新标签:', newTag)
 }
 
+// 文件上传相关函数
+
+// 文件选择变化处理
+const handleFileChange = (file: UploadFile) => {
+  if (file.raw) {
+    // 生成预览URL
+    const previewUrl = URL.createObjectURL(file.raw)
+    previewImages.value.push({
+      url: previewUrl,
+      name: file.name,
+      size: file.size || 0,
+      file: file.raw
+    })
+  }
+}
+
+// 文件移除处理
+const handleFileRemove = (file: UploadFile) => {
+  const index = previewImages.value.findIndex(img => img.name === file.name)
+  if (index > -1) {
+    // 释放预览URL
+    URL.revokeObjectURL(previewImages.value[index].url)
+    previewImages.value.splice(index, 1)
+  }
+}
+
+// 上传前验证
+const beforeUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
+}
+
+// 格式化文件大小
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// 移除预览图片
+const removePreviewImage = (index: number) => {
+  // 先获取要移除的图片信息
+  const imageToRemove = previewImages.value[index]
+
+  // 释放预览URL
+  URL.revokeObjectURL(imageToRemove.url)
+
+  // 从预览数组中移除
+  previewImages.value.splice(index, 1)
+
+  // 同时从fileList中移除对应的文件
+  const fileIndex = fileList.value.findIndex(file => file.name === imageToRemove.name)
+  if (fileIndex > -1) {
+    // 从fileList中移除文件
+    fileList.value.splice(fileIndex, 1)
+
+    // 强制重新赋值fileList以触发el-upload组件重新渲染
+    fileList.value = [...fileList.value]
+  }
+}
+
+// 上传图片
+const handleUpload = async () => {
+  if (previewImages.value.length === 0) {
+    ElMessage.warning('请先选择要上传的图片')
+    return
+  }
+
+  uploading.value = true
+  uploadProgress.value = 0
+
+  const loading = ElLoading.service({
+    lock: true,
+    text: '上传中...',
+    background: 'rgba(0, 0, 0, 0.7)',
+  })
+
+  try {
+    const formData = new FormData()
+
+    // 添加图片文件
+    previewImages.value.forEach(image => {
+      formData.append('files', image.file)
+    })
+
+    // 添加元数据
+    if (selectedTags.value.length > 0) {
+      formData.append('tags', JSON.stringify(selectedTags.value))
+    }
+    if (value.value) {
+      formData.append('albumId', value.value.toString())
+    }
+    if (textarea.value.trim()) {
+      formData.append('description', textarea.value.trim())
+    }
+
+    // 模拟上传进度
+    const progressInterval = setInterval(() => {
+      uploadProgress.value += 10
+      if (uploadProgress.value >= 90) {
+        clearInterval(progressInterval)
+      }
+    }, 200)
+
+    // 调用上传API
+    // 将 FormData 拆解为 File[] 以匹配 uploadImages 接口
+    const files: File[] = []
+    previewImages.value.forEach(image => files.push(image.file))
+    const result = await uploadImages(files, {
+      tags: selectedTags.value,
+      albumId: value.value ? value.value.toString() : undefined,
+      description: textarea.value.trim()
+    })
+
+    clearInterval(progressInterval)
+    uploadProgress.value = 100
+
+    if (result.success) {
+      ElMessage.success(`成功上传 ${result.data.length} 张图片`)
+
+      // 清空上传状态
+      previewImages.value.forEach(image => URL.revokeObjectURL(image.url))
+      previewImages.value = []
+      fileList.value = []
+      selectedTags.value = []
+      textarea.value = ''
+
+      // 延迟跳转，让用户看到成功消息
+      setTimeout(() => {
+        router.push('/')
+      }, 1500)
+    } else {
+      throw new Error(result.message || '上传失败')
+    }
+  } catch (error) {
+    console.error('上传错误:', error)
+    ElMessage.error(`上传失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  } finally {
+    uploading.value = false
+    uploadProgress.value = 0
+    loading.close()
+  }
+}
 
 // 返回上一页
 const goBack = () => {
@@ -404,26 +613,140 @@ defineExpose({
     }
 
     .preview {
+      background: $white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid $gray-200;
+      margin-top: 1rem;
+
+      @media (min-width: 768px) {
+        padding: 2rem;
+        margin-top: 1.5rem;
+      }
+
+      .preview-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+
+        .text-medium {
+          font-size: 1.125rem;
+          color: $gray-800;
+        }
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+
+        @media (min-width: 768px) {
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 1.5rem;
+        }
+
+        .preview-item {
+          position: relative;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transition: $transition-base;
+
+          &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+
+            .remove-btn {
+              opacity: 1;
+            }
+          }
+
+          img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            display: block;
+
+            @media (min-width: 768px) {
+              height: 150px;
+            }
+          }
+
+          .preview-info {
+            padding: 0.75rem;
+            background: $gray-100;
+
+            .file-name {
+              display: block;
+              font-size: 0.875rem;
+              font-weight: 500;
+              color: $gray-700;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            .file-size {
+              display: block;
+              font-size: 0.75rem;
+              color: $gray-500;
+              margin-top: 0.25rem;
+            }
+          }
+
+          .remove-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            opacity: 0;
+            transition: $transition-base;
+            width: 24px;
+            height: 24px;
+
+            &:hover {
+              opacity: 1;
+            }
+          }
+        }
+      }
+    }
+
+    .preview-placeholder {
       background: $gray-100;
       border-radius: 8px;
-      padding: 1rem;
+      padding: 2rem;
       min-height: 150px;
       border: 1px solid $gray-200;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       color: $gray-500;
       font-size: 14px;
+      margin-top: 1rem;
 
       @media (min-width: 768px) {
-        padding: 1.5rem;
+        padding: 3rem;
         min-height: 200px;
         font-size: 16px;
+        margin-top: 1.5rem;
       }
 
-      &::before {
-        content: "📷 预览区域";
-        font-weight: 600;
+      .placeholder-icon {
+        font-size: 48px;
+        color: $gray-400;
+        margin-bottom: 1rem;
+
+        @media (min-width: 768px) {
+          font-size: 64px;
+          margin-bottom: 1.5rem;
+        }
+      }
+
+      .placeholder-text {
+        font-weight: 500;
+        text-align: center;
       }
     }
   }
