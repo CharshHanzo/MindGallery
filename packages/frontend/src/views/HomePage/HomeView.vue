@@ -80,8 +80,8 @@ onUnmounted(() => {
         <div class="cover-overlay"></div>
       </div>
       <div class="action-btn" :class="{ 'scrolled': isScrolled }">
-        <el-icon><Plus /></el-icon>
-        <el-icon><Setting /></el-icon>
+        <el-icon @click="router.push('/upload')"><Plus /></el-icon>
+        <el-icon @click="router.push('/setting')"><Setting /></el-icon>
       </div>
       <div class="user-info">
         <div class="avatar-container">

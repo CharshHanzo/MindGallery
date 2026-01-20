@@ -2,9 +2,13 @@
 // MindGallery SCSS 混合宏
 // ============================================
 
+@use 'sass:map';
+@use 'sass:color';
+@use 'variables' as *;
+
 // 响应式断点混合宏
 @mixin media-breakpoint-up($name, $breakpoints: $breakpoints) {
-  $min: map-get($breakpoints, $name);
+  $min: map.get($breakpoints, $name);
   @if $min {
     @media (min-width: $min) {
       @content;
@@ -15,7 +19,7 @@
 }
 
 @mixin media-breakpoint-down($name, $breakpoints: $breakpoints) {
-  $max: map-get($breakpoints, $name) - 0.02px;
+  $max: map.get($breakpoints, $name) - 0.02px;
   @if $max {
     @media (max-width: $max) {
       @content;
@@ -26,8 +30,8 @@
 }
 
 @mixin media-breakpoint-between($lower, $upper, $breakpoints: $breakpoints) {
-  $min: map-get($breakpoints, $lower);
-  $max: map-get($breakpoints, $upper) - 0.02px;
+  $min: map.get($breakpoints, $lower);
+  $max: map.get($breakpoints, $upper) - 0.02px;
   @if $min != null and $max != null {
     @media (min-width: $min) and (max-width: $max) {
       @content;
@@ -87,8 +91,8 @@
   color: $color;
 
   &:hover {
-    background-color: darken($background, 10%);
-    border-color: darken($border, 10%);
+    background-color: color.adjust($background, $lightness: -10%);
+    border-color: color.adjust($border, $lightness: -10%);
     color: $color;
   }
 
@@ -158,7 +162,7 @@
 
 @mixin fade-in($duration: 0.3s) {
   animation: fadeIn $duration ease-in-out;
-  
+
   @keyframes fadeIn {
     from {
       opacity: 0;

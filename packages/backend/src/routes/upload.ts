@@ -953,6 +953,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             
             // 格式化结果
             const formattedTags = tagsResult.map(item => ({
+                id: `tag-${Buffer.from(item.tag).toString('base64')}`, // 使用标签名称的base64编码作为唯一ID
                 name: item.tag,
                 count: Number(item.count)
             }))

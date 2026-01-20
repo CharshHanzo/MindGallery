@@ -5,26 +5,35 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      redirect: '/allGallery'
+    },
+    {
+      path: '/',
       name: 'home',
-      component: () => import('../views/HomeView.vue'),
+      component: () => import('../views/HomePage/HomeView.vue'),
       children:[
         {
           path: '/allGallery',
           name: 'allGallery',
-          component: () => import('../views/AllGalleryView.vue'),
+          component: () => import('../views/HomePage/AllGalleryView.vue'),
         },
         {
           path: '/memoryMap',
           name: 'memoryMap',
-          component: () => import('../views/MemoryMapView.vue'),
+          component: () => import('../views/HomePage/MemoryMapView.vue'),
         },
         {
           path: '/myAlbums',
           name: 'myAlbums',
-          component: () => import('../views/MyAlbumsView.vue'),
+          component: () => import('../views/HomePage/MyAlbumsView.vue'),
         },
       ]
     },
+    {
+      path: '/upload',
+      name: 'upload',
+      component: () => import('../views/UploadImageView.vue'),
+    }
   ],
 })
 

@@ -89,3 +89,31 @@ $container-max-widths: (
 $transition-base: all 0.2s ease-in-out;
 $transition-fade: opacity 0.15s linear;
 $transition-collapse: height 0.35s ease;
+
+// ============================================
+// MindGallery 激活状态变量
+// ============================================
+
+// 方案一（推荐）
+$active-color: $primary-color;           // 文字颜色
+$active-background: $winter-sky-1;       // 背景色
+$active-border-color: $primary-color;    // 边框色
+$active-shadow: $box-shadow-sm;          // 阴影
+
+// 可选 hover 效果
+@use 'sass:color';
+$active-hover-bg: color.adjust($winter-sky-1, $lightness: -5%);
+
+// 或者使用主题映射方式
+$active-states: (
+  "primary": (
+    color: $white,
+    background: $primary-color,
+    border: $primary-color
+  ),
+  "secondary": (
+    color: $white,
+    background: $secondary-color,
+    border: $secondary-color
+  )
+);

@@ -2,9 +2,11 @@
 // MindGallery 主样式文件
 // ============================================
 
-// 导入变量和混合宏
-@import 'variables';
-@import 'mixins';
+// 导入变量和混合宏（使用新的@use语法）
+@use 'sass:color';
+@use 'sass:map';
+@use 'variables' as *;
+@use 'mixins' as *;
 
 // 全局样式重置
 * {
@@ -182,7 +184,7 @@ p {
 .d-flex { display: flex !important; }
 
 // 响应式显示类
-@each $breakpoint in map-keys($breakpoints) {
+@each $breakpoint in map.keys($breakpoints) {
   @include media-breakpoint-up($breakpoint) {
     .d-#{$breakpoint}-none { display: none !important; }
     .d-#{$breakpoint}-block { display: block !important; }
@@ -206,12 +208,12 @@ p {
 
   &:hover {
     border-color: $winter-sky-5;
-    background-color: lighten($winter-sky-5, 20%);
+    background-color: color.adjust($winter-sky-5, $lightness: 20%);
   }
 
   &.drag-over {
     border-color: $winter-sky-5;
-    background-color: lighten($winter-sky-5, 20%);
+    background-color: color.adjust($winter-sky-5, $lightness: 20%);
   }
 }
 
