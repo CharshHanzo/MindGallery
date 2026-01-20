@@ -60,6 +60,17 @@ async function setup() {
     }
   })
 
+  // 全局错误处理中间件
+  fastify.setErrorHandler((error, request, reply) => {
+    console.error('Global error handler caught error:', error)
+    console.error('Error stack:', (error as Error).stack)
+    reply.code(500).send({ 
+      error: 'Internal server error', 
+      details: (error as Error).message,
+      stack: (error as Error).stack 
+    })
+  })
+
   // 启动服务器
   try {
     await fastify.listen({ port: config.server.port, host: '0.0.0.0' })

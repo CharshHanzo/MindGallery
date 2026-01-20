@@ -114,24 +114,65 @@ export async function uploadRoutes(fastify: FastifyInstance) {
     // 图片上传接口 - 单张
     fastify.post('/api/upload',async (req: FastifyRequest, res: FastifyReply) => {
         try {
-            const data = await req.file()
-            if(!data) {
+            console.log('📤 收到单张上传请求')
+            
+            // 获取文件
+            let fileData = null
+            // 给fields对象添加正确的类型注解，允许字符串索引
+            let fields: Record<string, string> = {}
+            
+            // 使用正确的方式处理单文件上传
+            console.log('📋 开始处理请求 parts...')
+            for await (const part of req.parts()) {
+                console.log('📋 处理 part:')
+                console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
+                console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
+                
+                // 检查是否是文件类型的 part
+                if (part.type === 'file') {
+                    // 对于文件类型，获取文件名和 mimetype
+                    const filePart = part as any
+                    console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
+                    console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
+                    console.log('📋 这是一个文件 part')
+                    fileData = filePart
+                    break
+                } else {
+                    // 对于字段类型
+                    console.log('   - value:', part.value, ' (类型:', typeof part.value, ')')
+                    console.log('📋 这是一个字段 part')
+                    fields[part.fieldname] = part.value as string
+                }
+            }
+            
+            if(!fileData) {
                 return res.code(400).send({ error: 'No file uploaded' })
             }
 
             // 1. 验证文件类型
-            if (!IMAGE_CONFIG.ALLOWED_MIME_TYPES.includes(data.mimetype)) {
-                return res.code(400).send({ error: 'Invalid file type. Only images are allowed.' })
+            console.log(`📋 文件实际MIME类型: ${fileData.mimetype}`)
+            console.log(`📋 允许的MIME类型: ${IMAGE_CONFIG.ALLOWED_MIME_TYPES.join(', ')}`)
+            
+            // 处理 mimetype 可能是逗号分隔的列表的情况
+            let actualMimetype = fileData.mimetype
+            // 如果 mimetype 包含逗号，取第一个值作为实际的 mimetype
+            if (fileData.mimetype.includes(',')) {
+                actualMimetype = fileData.mimetype.split(',')[0].trim()
+                console.log(`📋 修正后的实际MIME类型: ${actualMimetype}`)
+            }
+            
+            if (!IMAGE_CONFIG.ALLOWED_MIME_TYPES.includes(actualMimetype)) {
+                return res.code(400).send({ error: `Invalid file type. Only images are allowed. 实际类型: ${actualMimetype}` })
             }
 
             // 2. 检查文件大小
-            const fileBuffer = await data.toBuffer()
+            const fileBuffer = await fileData.toBuffer()
             if (fileBuffer.length > IMAGE_CONFIG.MAX_SIZE) {
                 return res.code(400).send({ error: `File size exceeds max limit (${IMAGE_CONFIG.MAX_SIZE / 1024 / 1024}MB)` })
             }
 
             // 3. 生成随机唯一文件名
-            const fileExt = path.extname(data.filename)
+            const fileExt = path.extname(fileData.filename)
             const objectKey = `${randomUUID()}${fileExt}`
             const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
             
@@ -167,12 +208,12 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             // 5. 保存到数据库
             const image = await prisma.image.create({
                 data: {
-                    filename: data.filename,
+                    filename: fileData.filename,
                     objectKey: objectKey,
                     storageType: storageType,
                     bucketName: bucketName,
                     fileSize: fileBuffer.length,
-                    mimeType: data.mimetype,
+                    mimeType: fileData.mimetype,
                     tags: [],
                 }
             })
@@ -192,21 +233,67 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 }
             }
         } catch (error) {
-            console.log('upload error', error)
-            return res.code(500).send({ error: 'Internal server error', details: String(error) })
+            console.error('❌ 单张上传请求处理失败:')
+            console.error('📋 错误类型:', typeof error)
+            console.error('📋 错误信息:', error)
+            console.error('📋 错误栈:', error instanceof Error ? error.stack : 'No stack trace')
+            return res.code(500).send({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined })
         }
     })
 
     // 批量图片上传
     fastify.post('/api/upload/batch', async (req: FastifyRequest, res: FastifyReply) => {
         try {
-            const files = await req.files()
-            const fileArray = []
-            for await (const file of files) {
-                fileArray.push(file)
+            console.log('📤 收到批量上传请求')
+            
+            // 检查请求类型
+            const contentType = req.headers['content-type']
+            console.log(`📋 请求Content-Type: ${contentType}`)
+            
+            // 获取文件列表
+            let fileArray = []
+            // 给fields对象添加正确的类型注解，允许字符串索引
+            let fields: Record<string, string> = {}
+            
+            try {
+                console.log('✅ 文件解析开始')
+                
+                // 使用正确的方式处理多文件上传
+            console.log('📋 开始处理请求 parts...')
+            for await (const part of req.parts()) {
+                console.log('📋 处理 part:')
+                console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
+                console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
+                
+                // 检查是否是文件类型的 part
+                if (part.type === 'file') {
+                    // 对于文件类型，获取文件名和 mimetype
+                    const filePart = part as any
+                    console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
+                    console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
+                    console.log('📄 解析到文件:')
+                    console.log('   - filename:', filePart.filename)
+                    console.log('   - mimetype:', filePart.mimetype)
+                    fileArray.push(filePart)
+                } else {
+                    // 对于字段类型
+                    console.log('   - value:', part.value, ' (类型:', typeof part.value, ')')
+                    console.log('📋 解析到字段:')
+                    console.log('   - fieldname:', part.fieldname)
+                    console.log('   - value:', part.value)
+                    fields[part.fieldname] = part.value as string
+                }
+            }
+                
+                console.log(`✅ 文件解析完成, 共 ${fileArray.length} 个文件`)
+            } catch (filesError) {
+                console.error('❌ 文件解析失败:', filesError)
+                console.error('📋 文件解析错误栈:', filesError instanceof Error ? filesError.stack : 'No stack trace')
+                throw filesError
             }
             
             if (fileArray.length === 0) {
+                console.log('❌ 没有上传文件')
                 return res.code(400).send({ error: 'No files uploaded' })
             }
 
@@ -215,20 +302,37 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             
             for (const file of fileArray) {
                 try {
+                    console.log(`🔍 开始处理文件: ${file.filename}`)
+                    
                     // 验证文件类型
-                    if (!IMAGE_CONFIG.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+                    console.log(`📋 文件实际MIME类型: ${file.mimetype}`)
+                    console.log(`📋 允许的MIME类型: ${IMAGE_CONFIG.ALLOWED_MIME_TYPES.join(', ')}`)
+                    
+                    // 处理 mimetype 可能是逗号分隔的列表的情况
+                    let actualMimetype = file.mimetype
+                    // 如果 mimetype 包含逗号，取第一个值作为实际的 mimetype
+                    if (file.mimetype.includes(',')) {
+                        actualMimetype = file.mimetype.split(',')[0].trim()
+                        console.log(`📋 修正后的实际MIME类型: ${actualMimetype}`)
+                    }
+                    
+                    if (!IMAGE_CONFIG.ALLOWED_MIME_TYPES.includes(actualMimetype)) {
+                        console.log(`❌ 文件类型不合法: ${file.filename} - ${actualMimetype}`)
                         failedFiles.push({
                             filename: file.filename,
-                            error: 'Invalid file type'
+                            error: `Invalid file type. Only images are allowed. 实际类型: ${actualMimetype}`
                         })
                         continue
                     }
 
                     // 读取文件缓冲区
+                    console.log('📖 读取文件缓冲区...')
                     const fileBuffer = await file.toBuffer()
+                    console.log(`✅ 文件缓冲区读取完成, 大小: ${fileBuffer.length} bytes`)
                     
                     // 验证文件大小
                     if (fileBuffer.length > IMAGE_CONFIG.MAX_SIZE) {
+                        console.log(`❌ 文件大小超出限制: ${fileBuffer.length} > ${IMAGE_CONFIG.MAX_SIZE}`)
                         failedFiles.push({
                             filename: file.filename,
                             error: 'File size exceeds limit'
@@ -241,35 +345,48 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     const objectKey = `${randomUUID()}${fileExt}`
                     const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
                     
+                    console.log(`📁 生成文件名: ${objectKey}, 缩略图: ${thumbnailKey}`)
+                    
                     // 生成缩略图
+                    console.log('🖼️ 生成缩略图...')
                     const thumbnailBuffer = await generateThumbnail(fileBuffer)
+                    console.log(`✅ 缩略图生成完成, 大小: ${thumbnailBuffer.length} bytes`)
                     
                     let storageType: string
                     let bucketName: string | null = null
                     
                     // 存储文件
+                    console.log(`💾 存储类型: ${config.storage.type}`)
+                    
                     if (config.storage.type === 'minio' && config.storage.minio) {
                         // MinIO存储
                         storageType = 'minio'
                         const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
                         bucketName = minioConfig.bucket
                         
+                        console.log(`📦 使用MinIO存储, 存储桶: ${bucketName}`)
+                        
                         await Promise.all([
                             minioClient.putObject(bucketName, objectKey, fileBuffer),
                             minioClient.putObject(bucketName, thumbnailKey, thumbnailBuffer)
                         ])
+                        console.log('✅ MinIO存储完成')
                     } else {
                         // 本地存储
                         storageType = 'local'
                         const uploadDir = path.join(process.cwd(), 'uploads')
                         
+                        console.log(`📂 使用本地存储, 目录: ${uploadDir}`)
+                        
                         await Promise.all([
                             fs.writeFile(path.join(uploadDir, objectKey), fileBuffer),
                             fs.writeFile(path.join(uploadDir, thumbnailKey), thumbnailBuffer)
                         ])
+                        console.log('✅ 本地存储完成')
                     }
 
                     // 保存到数据库
+                    console.log('💾 保存到数据库...')
                     const image = await prisma.image.create({
                         data: {
                             filename: file.filename,
@@ -281,9 +398,11 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             tags: [],
                         }
                     })
+                    console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)
 
                     // 构建响应数据
                     const { url, thumbnailUrl } = buildImageUrls(image);
+                    console.log(`🌐 图片URL: ${url}, 缩略图URL: ${thumbnailUrl}`)
 
                     uploadedImages.push({
                         ...image,
@@ -292,24 +411,41 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         uploadTime: image.uploadTime.toISOString(),
                         albums: [],
                     })
-                } catch (error) {
+                    console.log(`✅ 文件处理完成: ${file.filename}`)
+                } catch (fileError) {
+                    console.error(`❌ 文件处理失败: ${file.filename}`)
+                    console.error('📋 文件处理错误:', fileError)
+                    console.error('📋 文件处理错误栈:', fileError instanceof Error ? fileError.stack : 'No stack trace')
                     failedFiles.push({
                         filename: file.filename,
-                        error: String(error)
+                        error: fileError instanceof Error ? fileError.message : String(fileError),
+                        stack: fileError instanceof Error ? fileError.stack : undefined
                     })
                 }
             }
 
-            return {
+            console.log(`📊 上传结果: 成功 ${uploadedImages.length} 个, 失败 ${failedFiles.length} 个`)
+            
+            const result = {
                 success: true,
                 message: `${uploadedImages.length} out of ${fileArray.length} images uploaded successfully`,
                 data: uploadedImages,
                 count: uploadedImages.length,
                 failedFiles
             }
+            
+            console.log('✅ 批量上传处理完成')
+            return result
         } catch (error) {
-            console.log('batch upload error', error)
-            return res.code(500).send({ error: 'Internal server error', details: String(error) })
+            console.error('❌ 批量上传请求处理失败:')
+            console.error('📋 错误类型:', typeof error)
+            console.error('📋 错误信息:', error)
+            console.error('📋 错误栈:', error instanceof Error ? error.stack : 'No stack trace')
+            return res.code(500).send({ 
+                error: 'Internal server error', 
+                details: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined
+            })
         }
     })
 
