@@ -1,0 +1,926 @@
+openapi: 3.0.0
+info:
+  title: MindGallery API
+  description: MindGallery图片管理系统API文档
+  version: 1.0.0
+  contact:
+    name: MindGallery Team
+    email: support@mindgallery.example
+servers:
+  - url: http://localhost:3000/api
+    description: 开发环境服务器
+paths:
+  # 图片管理API
+  /upload:
+    post:
+      summary: 单张图片上传
+      description: 上传单张图片并自动生成缩略图
+      tags:
+        - 图片管理
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 图片文件
+              required:
+                - file
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadImageResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /upload/batch:
+    post:
+      summary: 批量图片上传
+      description: 上传多张图片并自动生成缩略图
+      tags:
+        - 图片管理
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: 图片文件数组
+              required:
+                - files
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchUploadImageResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /images:
+    get:
+      summary: 获取图片列表
+      description: 获取图片列表，支持分页、筛选和排序
+      tags:
+        - 图片管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 50
+        - name: tags
+          in: query
+          description: 标签筛选，逗号分隔
+          schema:
+            type: string
+        - name: albumId
+          in: query
+          description: 相册ID筛选
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: 关键词搜索
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: 排序字段
+          schema:
+            type: string
+            default: uploadTime
+            enum: [uploadTime, takenTime, fileSize]
+        - name: sortOrder
+          in: query
+          description: 排序顺序
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagesListResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /images/{id}:
+    get:
+      summary: 获取单张图片详情
+      description: 根据ID获取单张图片的详细信息
+      tags:
+        - 图片管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 图片ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageDetailResponse'
+        '404':
+          description: 图片不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: 更新单张图片
+      description: 更新图片的元数据信息
+      tags:
+        - 图片管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 图片ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateImageRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageDetailResponse'
+        '404':
+          description: 图片不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: 删除单张图片
+      description: 删除图片及其缩略图
+      tags:
+        - 图片管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 图片ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteImageResponse'
+        '404':
+          description: 图片不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /images/batch:
+    put:
+      summary: 批量更新图片
+      description: 批量更新多张图片的元数据
+      tags:
+        - 图片管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchUpdateImagesRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchOperationResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: 批量删除图片
+      description: 批量删除多张图片
+      tags:
+        - 图片管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageIds:
+                  type: array
+                  items:
+                    type: string
+                  description: 图片ID数组
+              required:
+                - imageIds
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchOperationResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # 相册管理API
+  /albums:
+    post:
+      summary: 创建相册
+      description: 创建一个新的相册
+      tags:
+        - 相册管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlbumRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumDetailResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: 获取相册列表
+      description: 获取所有相册列表
+      tags:
+        - 相册管理
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumsListResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /albums/{id}:
+    get:
+      summary: 获取相册详情
+      description: 根据ID获取相册详情，包含相册中的图片
+      tags:
+        - 相册管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 相册ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumDetailResponse'
+        '404':
+          description: 相册不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /albums/{id}/images:
+    post:
+      summary: 添加图片到相册
+      description: 将多张图片添加到指定相册
+      tags:
+        - 相册管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 相册ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddImagesToAlbumRequest'
+      responses:
+        '200':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumOperationResponse'
+        '404':
+          description: 相册不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: 从相册移除图片
+      description: 从指定相册中移除多张图片
+      tags:
+        - 相册管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 相册ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveImagesFromAlbumRequest'
+      responses:
+        '200':
+          description: 移除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumOperationResponse'
+        '404':
+          description: 相册不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # 标签管理API
+  /tags:
+    get:
+      summary: 获取所有标签
+      description: 获取所有标签及其使用次数
+      tags:
+        - 标签管理
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagsListResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    # 数据模型
+    ImageInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 图片ID
+        filename:
+          type: string
+          description: 原始文件名
+        url:
+          type: string
+          format: uri
+          description: 原图URL
+        thumbnailUrl:
+          type: string
+          format: uri
+          description: 缩略图URL
+        fileSize:
+          type: integer
+          description: 文件大小（字节）
+        uploadTime:
+          type: string
+          format: date-time
+          description: 上传时间
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签数组
+        title:
+          type: string
+          description: 图片标题
+        description:
+          type: string
+          description: 图片描述
+        width:
+          type: integer
+          description: 图片宽度
+        height:
+          type: integer
+          description: 图片高度
+        takenTime:
+          type: string
+          format: date-time
+          description: 拍摄时间
+      required:
+        - id
+        - filename
+        - url
+        - thumbnailUrl
+        - fileSize
+        - uploadTime
+        - tags
+
+    AlbumInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 相册ID
+        name:
+          type: string
+          description: 相册名称
+        description:
+          type: string
+          description: 相册描述
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        imageCount:
+          type: integer
+          description: 图片数量
+      required:
+        - id
+        - name
+        - createdAt
+
+    TagInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 标签名称
+        count:
+          type: integer
+          description: 使用次数
+      required:
+        - name
+        - count
+
+    # 请求模型
+    CreateAlbumRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 相册名称
+          minLength: 1
+        description:
+          type: string
+          description: 相册描述
+      required:
+        - name
+
+    UpdateImageRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: 图片标题
+        description:
+          type: string
+          description: 图片描述
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签数组
+        albumIds:
+          type: array
+          items:
+            type: string
+          description: 相册ID数组
+
+    BatchUpdateImagesRequest:
+      type: object
+      properties:
+        imageIds:
+          type: array
+          items:
+            type: string
+          description: 图片ID数组
+        updateData:
+          $ref: '#/components/schemas/UpdateImageRequest'
+      required:
+        - imageIds
+        - updateData
+
+    AddImagesToAlbumRequest:
+      type: object
+      properties:
+        imageIds:
+          type: array
+          items:
+            type: string
+          description: 图片ID数组
+      required:
+        - imageIds
+
+    RemoveImagesFromAlbumRequest:
+      type: object
+      properties:
+        imageIds:
+          type: array
+          items:
+            type: string
+          description: 图片ID数组
+      required:
+        - imageIds
+
+    # 响应模型
+    UploadImageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          $ref: '#/components/schemas/ImageInfo'
+      required:
+        - success
+        - message
+        - data
+
+    BatchUploadImageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageInfo'
+        count:
+          type: integer
+          description: 成功上传数量
+        failedFiles:
+          type: array
+          items:
+            type: object
+            properties:
+              filename:
+                type: string
+                description: 失败文件名
+              error:
+                type: string
+                description: 失败原因
+      required:
+        - success
+        - message
+        - data
+        - count
+
+    ImagesListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageInfo'
+        count:
+          type: integer
+          description: 当前页数量
+        total:
+          type: integer
+          description: 总数量
+        page:
+          type: integer
+          description: 当前页码
+        limit:
+          type: integer
+          description: 每页数量
+      required:
+        - success
+        - message
+        - data
+        - count
+        - total
+        - page
+        - limit
+
+    ImageDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          $ref: '#/components/schemas/ImageInfo'
+      required:
+        - success
+        - message
+        - data
+
+    DeleteImageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+      required:
+        - success
+        - message
+
+    BatchOperationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          properties:
+            updatedCount:
+              type: integer
+              description: 更新成功数量
+            deletedCount:
+              type: integer
+              description: 删除成功数量
+            addedCount:
+              type: integer
+              description: 添加成功数量
+            removedCount:
+              type: integer
+              description: 移除成功数量
+            imageIds:
+              type: array
+              items:
+                type: string
+              description: 操作的图片ID数组
+            failedIds:
+              type: array
+              items:
+                type: string
+              description: 操作失败的图片ID数组
+            albumId:
+              type: string
+              description: 操作的相册ID
+      required:
+        - success
+        - message
+        - data
+
+    AlbumDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          $ref: '#/components/schemas/AlbumInfo'
+      required:
+        - success
+        - message
+        - data
+
+    AlbumsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlbumInfo'
+      required:
+        - success
+        - message
+        - data
+
+    AlbumOperationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          properties:
+            addedCount:
+              type: integer
+              description: 添加成功数量
+            removedCount:
+              type: integer
+              description: 移除成功数量
+            albumId:
+              type: string
+              description: 操作的相册ID
+      required:
+        - success
+        - message
+        - data
+
+    TagsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagInfo'
+      required:
+        - success
+        - message
+        - data
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 是否成功
+          example: false
+        error:
+          type: string
+          description: 错误消息
+        code:
+          type: integer
+          description: 错误代码
+      required:
+        - success
+        - error
+        - code

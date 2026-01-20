@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/ankane/pgvector:v0.5.1
