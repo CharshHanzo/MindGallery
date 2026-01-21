@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart'
 import staticPlugin from '@fastify/static'
 import path from 'path'
 import { uploadRoutes } from './routes/upload.js'
+import { tagRoutes } from './routes/tag.js'
 import { config } from './lib/config.js'
 
 const fastify = Fastify({
@@ -43,6 +44,9 @@ async function setup() {
 
   // 注册上传路由
   await fastify.register(uploadRoutes)
+  
+  // 注册标签路由
+  await fastify.register(tagRoutes)
 
   // 根路由
   fastify.get('/', async () => {

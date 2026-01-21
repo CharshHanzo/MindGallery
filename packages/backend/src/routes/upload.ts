@@ -118,8 +118,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             
             // 获取文件
             let fileData = null
-            // 给fields对象添加正确的类型注解，允许字符串索引
-            let fields: Record<string, string> = {}
             
             // 使用正确的方式处理单文件上传
             console.log('📋 开始处理请求 parts...')
@@ -137,11 +135,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     console.log('📋 这是一个文件 part')
                     fileData = filePart
                     break
-                } else {
-                    // 对于字段类型
-                    console.log('   - value:', part.value, ' (类型:', typeof part.value, ')')
-                    console.log('📋 这是一个字段 part')
-                    fields[part.fieldname] = part.value as string
                 }
             }
             
@@ -205,26 +198,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 ])
             }
 
-            // 5. 解析标签
-            let tags: string[] = []
-            if (fields.tags) {
-                try {
-                    // 尝试解析JSON字符串为数组
-                    tags = JSON.parse(fields.tags)
-                    // 确保是字符串数组
-                    if (!Array.isArray(tags)) {
-                        tags = []
-                    } else {
-                        // 过滤掉非字符串和空字符串
-                        tags = tags.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim())
-                    }
-                } catch (e) {
-                    console.error('❌ 解析标签失败:', e)
-                    tags = []
-                }
-            }
-            
-            // 6. 保存到数据库
+            // 5. 保存到数据库
             const image = await prisma.image.create({
                 data: {
                     filename: fileData.filename,
@@ -233,7 +207,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     bucketName: bucketName,
                     fileSize: fileBuffer.length,
                     mimeType: fileData.mimetype,
-                    tags: tags,
+                    tags: []
                 }
             })
 
@@ -271,8 +245,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             
             // 获取文件列表
             let fileArray = []
-            // 给fields对象添加正确的类型注解，允许字符串索引
-            let fields: Record<string, string> = {}
             
             try {
                 console.log('✅ 文件解析开始')
@@ -294,13 +266,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     console.log('   - filename:', filePart.filename)
                     console.log('   - mimetype:', filePart.mimetype)
                     fileArray.push(filePart)
-                } else {
-                    // 对于字段类型
-                    console.log('   - value:', part.value, ' (类型:', typeof part.value, ')')
-                    console.log('📋 解析到字段:')
-                    console.log('   - fieldname:', part.fieldname)
-                    console.log('   - value:', part.value)
-                    fields[part.fieldname] = part.value as string
                 }
             }
                 
@@ -404,25 +369,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         console.log('✅ 本地存储完成')
                     }
 
-                    // 解析标签
-                    let tags: string[] = []
-                    if (fields.tags) {
-                        try {
-                            // 尝试解析JSON字符串为数组
-                            tags = JSON.parse(fields.tags)
-                            // 确保是字符串数组
-                            if (!Array.isArray(tags)) {
-                                tags = []
-                            } else {
-                                // 过滤掉非字符串和空字符串
-                                tags = tags.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim())
-                            }
-                        } catch (e) {
-                            console.error('❌ 解析标签失败:', e)
-                            tags = []
-                        }
-                    }
-                    
                     // 保存到数据库
                     console.log('💾 保存到数据库...')
                     const image = await prisma.image.create({
@@ -433,7 +379,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             bucketName,
                             fileSize: fileBuffer.length,
                             mimeType: file.mimetype,
-                            tags: tags,
+                            tags: []
                         }
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)
@@ -495,7 +441,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             // 解析查询参数
             const page = parseInt(queryParams.page || '1')
             const limit = parseInt(queryParams.limit || '50')
-            const tags = queryParams.tags ? queryParams.tags.split(',') : undefined
             const albumId = queryParams.albumId
             const search = queryParams.search
             const sortBy = queryParams.sortBy || 'uploadTime'
@@ -507,16 +452,9 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             // 构建查询条件
             const whereClause: any = {}
             
-            // 按标签筛选
-            if (tags && tags.length > 0) {
-                whereClause.tags = {
-                    hasEvery: tags
-                }
-            }
-            
             // 按相册筛选
             if (albumId) {
-                whereClause.albums = {
+                whereClause.imageAlbums = {
                     some: {
                         albumId
                     }
@@ -541,7 +479,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const images = await prisma.image.findMany({
                 where: whereClause,
                 include: {
-                    albums: {
+                    imageAlbums: {
                         select: {
                             album: {
                                 select: {
@@ -562,7 +500,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             })
             
             // 格式化响应
-            const formattedImages = images.map(img => {
+            const formattedImages = images.map((img: any) => {
                 const { url, thumbnailUrl } = buildImageUrls(img);
                 
                 return {
@@ -571,7 +509,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     thumbnailUrl,
                     uploadTime: img.uploadTime.toISOString(),
                     takenTime: img.takenTime?.toISOString(),
-                    albums: (img as any).albums.map((item: any) => ({
+                    albums: img.imageAlbums.map((item: any) => ({
                         ...item.album,
                         createdAt: item.album.createdAt.toISOString()
                     }))
@@ -600,7 +538,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const image = await prisma.image.findUnique({
                 where: { id },
                 include: {
-                    albums: {
+                    imageAlbums: {
                         select: {
                             album: {
                                 select: {
@@ -630,7 +568,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     thumbnailUrl,
                     uploadTime: image.uploadTime.toISOString(),
                     takenTime: image.takenTime?.toISOString(),
-                    albums: (image as any).albums.map((item: any) => ({
+                    albums: image.imageAlbums.map((item: any) => ({
                         ...item.album,
                         createdAt: item.album.createdAt.toISOString()
                     }))
@@ -649,7 +587,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const updateData = req.body as {
                 title?: string;
                 description?: string;
-                tags?: string[];
                 albumIds?: string[];
             }
 
@@ -658,16 +595,15 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             if (!existingImage) {
                 return res.code(404).send({ error: 'Image not found' })
             }
-
+            
             // 更新图片元数据
             const updateDataInput: any = {}
             
             if (updateData.title !== undefined) updateDataInput.title = updateData.title
             if (updateData.description !== undefined) updateDataInput.description = updateData.description
-            if (updateData.tags !== undefined) updateDataInput.tags = updateData.tags
             
             if (updateData.albumIds) {
-                updateDataInput.albums = {
+                updateDataInput.imageAlbums = {
                     deleteMany: {},
                     create: updateData.albumIds.map(albumId => ({
                         album: { connect: { id: albumId } }
@@ -679,7 +615,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 where: { id },
                 data: updateDataInput,
                 include: {
-                    albums: {
+                    imageAlbums: {
                         select: {
                             album: {
                                 select: {
@@ -706,7 +642,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     thumbnailUrl,
                     uploadTime: updatedImage.uploadTime.toISOString(),
                     takenTime: updatedImage.takenTime?.toISOString(),
-                    albums: (updatedImage as any).albums.map((item: any) => ({
+                    albums: updatedImage.imageAlbums.map((item: any) => ({
                         ...item.album,
                         createdAt: item.album.createdAt.toISOString()
                     }))
@@ -726,7 +662,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 updateData: {
                     title?: string;
                     description?: string;
-                    tags?: string[];
                     albumIds?: string[];
                 };
             }
@@ -739,27 +674,34 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const failedIds: string[] = []
 
             // 批量更新每张图片
-            const updateDataInput: any = {}
-            
-            if (updateData.title !== undefined) updateDataInput.title = updateData.title
-            if (updateData.description !== undefined) updateDataInput.description = updateData.description
-            if (updateData.tags !== undefined) updateDataInput.tags = updateData.tags
-            
-            if (updateData.albumIds) {
-                updateDataInput.albums = {
-                    deleteMany: {},
-                    create: updateData.albumIds.map(albumId => ({
-                        album: { connect: { id: albumId } }
-                    }))
-                }
-            }
-            
             for (const imageId of imageIds) {
                 try {
+                    // 获取图片当前标签
+                    const existingImage = await prisma.image.findUnique({ where: { id: imageId } })
+                    if (!existingImage) {
+                        failedIds.push(imageId)
+                        continue
+                    }
+                    
+                    const updateDataInput: any = {}
+                    
+                    if (updateData.title !== undefined) updateDataInput.title = updateData.title
+                    if (updateData.description !== undefined) updateDataInput.description = updateData.description
+                    
+                    if (updateData.albumIds) {
+                        updateDataInput.imageAlbums = {
+                            deleteMany: {},
+                            create: updateData.albumIds.map(albumId => ({
+                                album: { connect: { id: albumId } }
+                            }))
+                        }
+                    }
+                    
                     await prisma.image.update({
                         where: { id: imageId },
                         data: updateDataInput
                     })
+                    
                     successCount++
                 } catch (error) {
                     failedIds.push(imageId)
@@ -934,17 +876,17 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         try {
             const albums = await prisma.album.findMany({
                 include: {
-                    images: true
+                    imageAlbums: true
                 },
                 orderBy: {
                     createdAt: 'desc'
                 }
             })
             
-            const formattedAlbums = albums.map(album => ({
+            const formattedAlbums = albums.map((album: any) => ({
                 ...album,
                 createdAt: album.createdAt.toISOString(),
-                imageCount: album.images.length
+                imageCount: album.imageAlbums.length
             }))
             
             return {
@@ -965,7 +907,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const album = await prisma.album.findUnique({
                 where: { id },
                 include: {
-                    images: {
+                    imageAlbums: {
                         include: {
                             image: {
                                 select: {
@@ -977,7 +919,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                                     fileSize: true,
                                     mimeType: true,
                                     uploadTime: true,
-                                    title: true,
                                     tags: true
                                 }
                             }
@@ -991,7 +932,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             }
             
             // 格式化图片数据
-            const formattedImages = album.images.map(item => {
+            const formattedImages = album.imageAlbums.map((item: any) => {
                 const { url, thumbnailUrl } = buildImageUrls(item.image);
                 
                 return {
@@ -1009,7 +950,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     ...album,
                     createdAt: album.createdAt.toISOString(),
                     images: formattedImages,
-                    imageCount: album.images.length
+                    imageCount: album.imageAlbums.length
                 }
             }
         } catch (error) {
@@ -1077,68 +1018,57 @@ export async function uploadRoutes(fastify: FastifyInstance) {
     })
 
     // 从相册移除图片
-    fastify.delete<{ Params: { id: string } }>('/api/albums/:id/images', async (req: FastifyRequest<{ Params: { id: string } }>, res: FastifyReply) => {
+    fastify.delete<{ Params: { id: string; imageId: string } }>('/api/albums/:id/images/:imageId', async (req: FastifyRequest<{ Params: { id: string; imageId: string } }>, res: FastifyReply) => {
         try {
-            const { id: albumId } = req.params
-            const { imageIds } = req.body as { imageIds: string[] }
+            const { id: albumId, imageId } = req.params
             
-            if (!imageIds || imageIds.length === 0) {
-                return res.code(400).send({ error: 'No image IDs provided' })
+            // 验证相册存在
+            const album = await prisma.album.findUnique({ where: { id: albumId } })
+            if (!album) {
+                return res.code(404).send({ error: 'Album not found' })
             }
             
-            // 批量移除关联
-            const removedCount = await prisma.imageAlbum.deleteMany({
+            // 移除关联
+            await prisma.imageAlbum.delete({
                 where: {
-                    albumId,
-                    imageId: {
-                        in: imageIds
+                    imageId_albumId: {
+                        imageId,
+                        albumId
                     }
                 }
             })
             
             return {
                 success: true,
-                message: 'Images removed from album successfully',
-                data: {
-                    removedCount: removedCount.count,
-                    albumId
-                }
+                message: 'Image removed from album successfully'
             }
         } catch (error) {
-            console.log('remove images from album error', error)
+            console.log('remove image from album error', error)
             return res.code(500).send({ error: 'Internal server error', details: String(error) })
         }
     })
 
-    // 获取所有标签
-    fastify.get('/api/tags', async (req: FastifyRequest, res: FastifyReply) => {
+    // 删除相册
+    fastify.delete<{ Params: { id: string } }>('/api/albums/:id', async (req: FastifyRequest<{ Params: { id: string } }>, res: FastifyReply) => {
         try {
-            // 使用Prisma的raw查询获取所有标签及其计数
-            const tagsResult = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-                SELECT tag, COUNT(*) as count
-                FROM (
-                    SELECT unnest(tags) as tag
-                    FROM "Image"
-                    WHERE tags IS NOT NULL AND tags <> '{}'
-                ) as all_tags
-                GROUP BY tag
-                ORDER BY count DESC
-            `
+            const { id } = req.params
+            // 验证相册存在
+            const album = await prisma.album.findUnique({ where: { id } })
+            if (!album) {
+                return res.code(404).send({ error: 'Album not found' })
+            }
             
-            // 格式化结果
-            const formattedTags = tagsResult.map(item => ({
-                id: `tag-${Buffer.from(item.tag).toString('base64')}`, // 使用标签名称的base64编码作为唯一ID
-                name: item.tag,
-                count: Number(item.count)
-            }))
+            // 删除相册（级联删除关联）
+            await prisma.album.delete({
+                where: { id }
+            })
             
             return {
                 success: true,
-                message: 'Tags retrieved successfully',
-                data: formattedTags
+                message: 'Album deleted successfully'
             }
         } catch (error) {
-            console.log('get tags error', error)
+            console.log('delete album error', error)
             return res.code(500).send({ error: 'Internal server error', details: String(error) })
         }
     })

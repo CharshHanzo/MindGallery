@@ -19,7 +19,7 @@ model Image {
   
   // AI分析字段
   description String?
-  tags        String[]
+  tags        String[]  // 保留用于兼容，同时使用关联表管理
   vector      Float[]     // pgvector 向量
   
   // 元数据
@@ -29,7 +29,84 @@ model Image {
   location    String?
   takenTime   DateTime?
   
+  // 关联
+  imageTags   ImageTag[]
+  imageAlbums ImageAlbum[]
+  
   // 索引
   @@index([uploadTime])
   @@index([tags])
 }
+
+// 独立的标签表
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  count       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  description String?
+  category    String?
+  isActive    Boolean   @default(true)
+  
+  // 关联
+  imageTags   ImageTag[]
+  
+  // 索引
+  @@index([name])
+  @@index([count])
+}
+
+// 图片标签关联表
+model ImageTag {
+  id        String   @id @default(cuid())
+  imageId   String
+  tagId     String
+  createdAt DateTime @default(now())
+  
+  // 关联
+  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  // 唯一约束，确保一张图片不会重复关联同一个标签
+  @@unique([imageId, tagId])
+  
+  // 索引
+  @@index([imageId])
+  @@index([tagId])
+}
+
+// 相册模型
+model Album {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  createdAt   DateTime      @default(now())
+  
+  // 关联
+  imageAlbums ImageAlbum[]
+  
+  // 索引
+  @@index([createdAt])
+}
+
+// 图片相册关联表
+model ImageAlbum {
+  id        String   @id @default(cuid())
+  imageId   String
+  albumId   String
+  createdAt DateTime @default(now())
+  
+  // 关联
+  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  
+  // 唯一约束，确保一张图片不会重复关联同一个相册
+  @@unique([imageId, albumId])
+  
+  // 索引
+  @@index([imageId])
+  @@index([albumId])
+  @@index([createdAt])
+}
+

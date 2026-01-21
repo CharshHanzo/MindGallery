@@ -2,7 +2,6 @@
 // 基于Prisma模型，包含完整数据库字段
 
 import type { Image } from '@prisma/client';
-import type { Album } from '@prisma/client';
 
 // 数据库图片模型扩展，包含关联数据
 export interface ImageWithAlbums extends Image {
@@ -80,10 +79,10 @@ export interface ImageService {
 
 // 相册服务接口
 export interface AlbumService {
-  createAlbum(name: string, description?: string): Promise<Album>;
-  getAlbumById(id: string): Promise<(Album & { images: Image[] }) | null>;
-  getAlbums(): Promise<Album[]>;
-  updateAlbum(id: string, data: Partial<Album>): Promise<Album | null>;
+  createAlbum(name: string, description?: string): Promise<any>;
+  getAlbumById(id: string): Promise<(any & { images: Image[] }) | null>;
+  getAlbums(): Promise<any[]>;
+  updateAlbum(id: string, data: Partial<any>): Promise<any | null>;
   deleteAlbum(id: string): Promise<boolean>;
   getAlbumImages(albumId: string, offset?: number, limit?: number): Promise<{ images: Image[]; total: number }>;
 }
