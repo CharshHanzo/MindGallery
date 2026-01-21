@@ -126,6 +126,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             
             // 获取文件和其他表单数据
             let fileData = null
+            let fileBuffer: Buffer | null = null
             const formData: Record<string, any> = {};
             
             // 使用正确的方式处理单文件上传
@@ -163,6 +164,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         console.log('   - fieldname:', filePart.fieldname, ' (类型:', typeof filePart.fieldname, ')')
                         console.log('📋 这是一个文件 part')
                         fileData = filePart
+                        fileBuffer = await filePart.toBuffer()
                         hasProcessedFile = true;
                         // 找到文件后，继续处理其他字段（如tags、description等）
                     } else if (part.type === 'field') {
@@ -211,7 +213,11 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             }
 
             // 2. 检查文件大小
-            const fileBuffer = await fileData.toBuffer()
+            // const fileBuffer = await fileData.toBuffer() // 已在循环中读取
+            if (!fileBuffer) {
+                return res.code(500).send({ error: 'File buffer is missing' })
+            }
+
             if (fileBuffer.length > IMAGE_CONFIG.MAX_SIZE) {
                 return res.code(400).send({ error: `File size exceeds max limit (${IMAGE_CONFIG.MAX_SIZE / 1024 / 1024}MB)` })
             }
@@ -401,7 +407,8 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             console.log('📄 解析到文件:')
                             console.log('   - filename:', filePart.filename)
                             console.log('   - mimetype:', filePart.mimetype)
-                            fileArray.push(filePart)
+                            const buffer = await filePart.toBuffer()
+                            fileArray.push({ part: filePart, buffer })
                         } else if (part.type === 'field') {
                             // 对于普通字段，获取字段名和值
                             const fieldPart = part as any
@@ -442,8 +449,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const uploadedImages = []
             const failedFiles = []
             
-            for (const file of fileArray) {
+            for (const fileItem of fileArray) {
                 try {
+                    const file = fileItem.part;
+                    const fileBuffer = fileItem.buffer;
                     console.log(`🔍 开始处理文件: ${file.filename}`)
                     
                     // 验证文件类型
@@ -469,7 +478,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
 
                     // 读取文件缓冲区
                     console.log('📖 读取文件缓冲区...')
-                    const fileBuffer = await file.toBuffer()
+                    // const fileBuffer = await file.toBuffer() // 已在循环中读取
                     console.log(`✅ 文件缓冲区读取完成, 大小: ${fileBuffer.length} bytes`)
                     
                     // 验证文件大小
@@ -617,11 +626,11 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     uploadedImages.push(imageInfo)
                     console.log(`✅ 文件处理完成: ${file.filename}`)
                 } catch (fileError) {
-                    console.error(`❌ 文件处理失败: ${file.filename}`)
+                    console.error(`❌ 文件处理失败: ${fileItem.part.filename}`)
                     console.error('📋 文件处理错误:', fileError)
                     console.error('📋 文件处理错误栈:', fileError instanceof Error ? fileError.stack : 'No stack trace')
                     failedFiles.push({
-                        filename: file.filename,
+                        filename: fileItem.part.filename,
                         error: fileError instanceof Error ? fileError.message : String(fileError),
                         stack: fileError instanceof Error ? fileError.stack : undefined
                     })
