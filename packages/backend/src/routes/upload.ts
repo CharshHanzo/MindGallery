@@ -205,7 +205,26 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 ])
             }
 
-            // 5. 保存到数据库
+            // 5. 解析标签
+            let tags: string[] = []
+            if (fields.tags) {
+                try {
+                    // 尝试解析JSON字符串为数组
+                    tags = JSON.parse(fields.tags)
+                    // 确保是字符串数组
+                    if (!Array.isArray(tags)) {
+                        tags = []
+                    } else {
+                        // 过滤掉非字符串和空字符串
+                        tags = tags.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim())
+                    }
+                } catch (e) {
+                    console.error('❌ 解析标签失败:', e)
+                    tags = []
+                }
+            }
+            
+            // 6. 保存到数据库
             const image = await prisma.image.create({
                 data: {
                     filename: fileData.filename,
@@ -214,7 +233,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     bucketName: bucketName,
                     fileSize: fileBuffer.length,
                     mimeType: fileData.mimetype,
-                    tags: [],
+                    tags: tags,
                 }
             })
 
@@ -385,6 +404,25 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         console.log('✅ 本地存储完成')
                     }
 
+                    // 解析标签
+                    let tags: string[] = []
+                    if (fields.tags) {
+                        try {
+                            // 尝试解析JSON字符串为数组
+                            tags = JSON.parse(fields.tags)
+                            // 确保是字符串数组
+                            if (!Array.isArray(tags)) {
+                                tags = []
+                            } else {
+                                // 过滤掉非字符串和空字符串
+                                tags = tags.filter(tag => typeof tag === 'string' && tag.trim() !== '').map(tag => tag.trim())
+                            }
+                        } catch (e) {
+                            console.error('❌ 解析标签失败:', e)
+                            tags = []
+                        }
+                    }
+                    
                     // 保存到数据库
                     console.log('💾 保存到数据库...')
                     const image = await prisma.image.create({
@@ -395,7 +433,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             bucketName,
                             fileSize: fileBuffer.length,
                             mimeType: file.mimetype,
-                            tags: [],
+                            tags: tags,
                         }
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)

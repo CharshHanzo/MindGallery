@@ -1,9 +1,18 @@
 // 图片相关API接口
+import type {
+  UploadImageResponse,
+  BatchUploadImageResponse,
+  ImagesListResponse,
+  ImageDetailResponse,
+  DeleteImageResponse,
+  BatchOperationResponse,
+  UpdateImageRequest
+} from '@mindgallery/shared/src/types/api'
 
 /**
  * 上传单张图片
  */
-export const uploadSingleImage = async (formData: FormData) => {
+export const uploadSingleImage = async (formData: FormData): Promise<UploadImageResponse> => {
   const response = await fetch('/api/upload', {
     method: 'POST',
     body: formData,
@@ -19,7 +28,7 @@ export const uploadSingleImage = async (formData: FormData) => {
 /**
  * 批量上传图片
  */
-export const uploadMultipleImages = async (formData: FormData) => {
+export const uploadMultipleImages = async (formData: FormData): Promise<BatchUploadImageResponse> => {
   const response = await fetch('/api/upload/batch', {
     method: 'POST',
     body: formData,
@@ -35,7 +44,7 @@ export const uploadMultipleImages = async (formData: FormData) => {
 /**
  * 获取图片列表
  */
-export const getImageList = async (params?: { page?: number; limit?: number }) => {
+export const getImageList = async (params?: { page?: number; limit?: number }): Promise<ImagesListResponse> => {
   const queryParams = new URLSearchParams()
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.limit) queryParams.append('limit', params.limit.toString())
@@ -52,7 +61,7 @@ export const getImageList = async (params?: { page?: number; limit?: number }) =
 /**
  * 获取图片详情
  */
-export const getImageDetail = async (imageId: string) => {
+export const getImageDetail = async (imageId: string): Promise<ImageDetailResponse> => {
   const response = await fetch(`/api/images/${imageId}`)
 
   if (!response.ok) {
@@ -65,7 +74,7 @@ export const getImageDetail = async (imageId: string) => {
 /**
  * 删除图片
  */
-export const deleteImage = async (imageId: string) => {
+export const deleteImage = async (imageId: string): Promise<DeleteImageResponse> => {
   const response = await fetch(`/api/images/${imageId}`, {
     method: 'DELETE',
   })
@@ -80,7 +89,7 @@ export const deleteImage = async (imageId: string) => {
 /**
  * 更新图片信息
  */
-export const updateImageInfo = async (imageId: string, data: { title?: string; tags?: string[]; description?: string }) => {
+export const updateImageInfo = async (imageId: string, data: UpdateImageRequest): Promise<ImageDetailResponse> => {
   const response = await fetch(`/api/images/${imageId}`, {
     method: 'PUT',
     headers: {
@@ -101,7 +110,7 @@ export const updateImageInfo = async (imageId: string, data: { title?: string; t
  * @param files 要上传的文件列表
  * @param additionalData 额外的表单数据
  */
-export const uploadImages = async (files: File[], additionalData?: Record<string, any>) => {
+export const uploadImages = async (files: File[], additionalData?: Record<string, any>): Promise<UploadImageResponse | BatchUploadImageResponse> => {
   // 创建FormData
   const formData = new FormData()
 
@@ -135,7 +144,8 @@ export const uploadImages = async (files: File[], additionalData?: Record<string
     if (result.data && !Array.isArray(result.data)) {
       return {
         ...result,
-        data: [result.data]
+        data: [result.data],
+        count:1
       }
     }
     return result

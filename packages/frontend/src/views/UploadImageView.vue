@@ -171,6 +171,8 @@ import { ElMessage, ElLoading } from 'element-plus'
 import type { TagInfo } from '@mindgallery/shared/src/types/api'
 import type { CheckboxValueType, UploadFile} from 'element-plus'
 import { uploadImages } from '@/api'
+import { getTagList } from '@/api/modules/tag'
+import type { BatchUploadImageResponse } from '@mindgallery/shared/src/types/api'
 
 // 上传相关状态
 const fileList = ref<UploadFile[]>([])
@@ -242,20 +244,15 @@ onMounted(async () => {
 // 从API获取标签数据
 const fetchTagsFromAPI = async () => {
   try {
-    // 这里应该调用实际的API
-    // const response = await fetch('/api/tags')
-    // const data = await response.json()
-    // if (data.success) {
-    //   availableTags.value = data.data
-    // }
-
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // 这里使用模拟数据，实际开发中应该使用上面的API调用
-    console.log('标签数据加载完成')
+    // 调用实际的API获取标签列表
+    const response = await getTagList()
+    if (response.success) {
+      availableTags.value = response.data
+    }
+    console.log('标签数据加载完成:', response.data)
   } catch (error) {
     console.error('获取标签数据失败:', error)
+    ElMessage.error('获取标签列表失败')
   }
 }
 
@@ -439,8 +436,19 @@ const handleUpload = async () => {
     clearInterval(progressInterval)
     uploadProgress.value = 100
 
+    // 处理上传结果，确保类型安全
+    let uploadedCount = 0
     if (result.success) {
-      ElMessage.success(`成功上传 ${result.data.length} 张图片`)
+      // 根据文件数量判断是单张还是批量上传
+      if (files.length === 1) {
+        // 单张上传，result.data 是单个 ImageInfo
+        uploadedCount = 1
+      } else {
+        // 批量上传，result.data 是 ImageInfo[]
+        uploadedCount = (result as BatchUploadImageResponse).data.length
+      }
+
+      ElMessage.success(`成功上传 ${uploadedCount} 张图片`)
 
       // 清空上传状态
       previewImages.value.forEach(image => URL.revokeObjectURL(image.url))
