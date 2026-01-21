@@ -124,25 +124,69 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         try {
             console.log('📤 收到单张上传请求')
             
-            // 获取文件
+            // 获取文件和其他表单数据
             let fileData = null
+            const formData: Record<string, any> = {};
             
             // 使用正确的方式处理单文件上传
             console.log('📋 开始处理请求 parts...')
-            for await (const part of req.parts()) {
-                console.log('📋 处理 part:')
-                console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
-                console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
-                
-                // 检查是否是文件类型的 part
-                if (part.type === 'file') {
-                    // 对于文件类型，获取文件名和 mimetype
-                    const filePart = part as any
-                    console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
-                    console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
-                    console.log('📋 这是一个文件 part')
-                    fileData = filePart
-                    break
+            let hasProcessedFile = false;
+            
+            // 限制parts处理时间，防止无限等待
+            const partsIterator = req.parts();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Parts processing timeout')), 30000);
+            });
+            
+            try {
+                // 使用Promise.race来防止无限等待
+                while (true) {
+                    const partResult = await Promise.race([partsIterator.next(), timeoutPromise]) as IteratorResult<any>;
+                    
+                    // 检查迭代器是否结束
+                    if (partResult.done) {
+                        break;
+                    }
+                    
+                    const part = partResult.value;
+                    
+                    console.log('📋 处理 part:')
+                    console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
+                    console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
+                    
+                    // 检查是否是文件类型的 part
+                    if (part.type === 'file') {
+                        // 对于文件类型，获取文件名和 mimetype
+                        const filePart = part as any
+                        console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
+                        console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
+                        console.log('   - fieldname:', filePart.fieldname, ' (类型:', typeof filePart.fieldname, ')')
+                        console.log('📋 这是一个文件 part')
+                        fileData = filePart
+                        hasProcessedFile = true;
+                        // 找到文件后，继续处理其他字段（如tags、description等）
+                    } else if (part.type === 'field') {
+                        // 对于普通字段，获取字段名和值
+                        const fieldPart = part as any
+                        console.log('   - value:', fieldPart.value, ' (类型:', typeof fieldPart.value, ')')
+                        console.log('📋 这是一个字段 part')
+                        
+                        // 解析JSON格式的值
+                        try {
+                            formData[fieldPart.fieldname] = JSON.parse(fieldPart.value);
+                            console.log('📋 解析JSON字段成功:', fieldPart.fieldname, '->', formData[fieldPart.fieldname]);
+                        } catch (e) {
+                            // 如果不是JSON，直接保存为字符串
+                            formData[fieldPart.fieldname] = fieldPart.value;
+                            console.log('📋 直接保存字段:', fieldPart.fieldname, '->', formData[fieldPart.fieldname]);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('📋 处理 parts 时出错:', e);
+                // 如果已经处理了文件，继续执行
+                if (!hasProcessedFile) {
+                    throw e;
                 }
             }
             
@@ -207,6 +251,26 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             }
 
             // 5. 保存到数据库
+            // 确保tagsArray是数组
+            let tagsArray: string[] = [];
+            if (formData.tags) {
+                if (Array.isArray(formData.tags)) {
+                    tagsArray = formData.tags;
+                } else if (typeof formData.tags === 'string') {
+                    try {
+                        // 尝试解析JSON字符串
+                        const parsedTags = JSON.parse(formData.tags);
+                        if (Array.isArray(parsedTags)) {
+                            tagsArray = parsedTags;
+                        }
+                    } catch (e) {
+                        console.error('解析tags失败:', e);
+                        tagsArray = [];
+                    }
+                }
+            }
+            
+            // 保存图片
             const image = await prisma.image.create({
                 data: {
                     filename: fileData.filename,
@@ -215,9 +279,42 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     bucketName: bucketName,
                     fileSize: fileBuffer.length,
                     mimeType: fileData.mimetype,
-                    tags: []
+                    tags: tagsArray,
+                    description: formData.description || null
                 }
             })
+            
+            // 处理标签关联和计数
+            if (tagsArray.length > 0) {
+                // 获取所有标签记录，不存在则创建
+                const tagRecords = await Promise.all(
+                    tagsArray.map(async (tagName: string) => {
+                        // 查找或创建标签
+                        return await prisma.tag.upsert({
+                            where: { name: tagName },
+                            update: {
+                                count: { increment: 1 } // 增加计数
+                            },
+                            create: {
+                                name: tagName,
+                                count: 1 // 初始计数为1
+                            }
+                        });
+                    })
+                );
+                
+                // 创建ImageTag关联
+                await Promise.all(
+                    tagRecords.map(tag => 
+                        prisma.imageTag.create({
+                            data: {
+                                imageId: image.id,
+                                tagId: tag.id
+                            }
+                        })
+                    )
+                );
+            }
 
             // 构建响应数据
             const { url, thumbnailUrl } = buildImageUrls(image);
@@ -263,31 +360,72 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const contentType = req.headers['content-type']
             console.log(`📋 请求Content-Type: ${contentType}`)
             
-            // 获取文件列表
+            // 获取文件列表和其他表单数据
             let fileArray = []
+            const formData: Record<string, any> = {};
             
             try {
                 console.log('✅ 文件解析开始')
                 
                 // 使用正确的方式处理多文件上传
-            console.log('📋 开始处理请求 parts...')
-            for await (const part of req.parts()) {
-                console.log('📋 处理 part:')
-                console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
-                console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
+                console.log('📋 开始处理请求 parts...')
                 
-                // 检查是否是文件类型的 part
-                if (part.type === 'file') {
-                    // 对于文件类型，获取文件名和 mimetype
-                    const filePart = part as any
-                    console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
-                    console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
-                    console.log('📄 解析到文件:')
-                    console.log('   - filename:', filePart.filename)
-                    console.log('   - mimetype:', filePart.mimetype)
-                    fileArray.push(filePart)
+                // 限制parts处理时间，防止无限等待
+                const partsIterator = req.parts();
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Parts processing timeout')), 30000);
+                });
+                
+                try {
+                    // 使用Promise.race来防止无限等待
+                    while (true) {
+                        const partResult = await Promise.race([partsIterator.next(), timeoutPromise]) as IteratorResult<any>;
+                    
+                        // 检查迭代器是否结束
+                        if (partResult.done) {
+                            break;
+                        }
+                    
+                        const part = partResult.value;
+                        
+                        console.log('📋 处理 part:')
+                        console.log('   - type:', part.type, ' (类型:', typeof part.type, ')')
+                        console.log('   - fieldname:', part.fieldname, ' (类型:', typeof part.fieldname, ')')
+                        
+                        // 检查是否是文件类型的 part
+                        if (part.type === 'file') {
+                            // 对于文件类型，获取文件名和 mimetype
+                            const filePart = part as any
+                            console.log('   - filename:', filePart.filename, ' (类型:', typeof filePart.filename, ')')
+                            console.log('   - mimetype:', filePart.mimetype, ' (类型:', typeof filePart.mimetype, ')')
+                            console.log('📄 解析到文件:')
+                            console.log('   - filename:', filePart.filename)
+                            console.log('   - mimetype:', filePart.mimetype)
+                            fileArray.push(filePart)
+                        } else if (part.type === 'field') {
+                            // 对于普通字段，获取字段名和值
+                            const fieldPart = part as any
+                            console.log('   - value:', fieldPart.value, ' (类型:', typeof fieldPart.value, ')')
+                            console.log('📋 这是一个字段 part')
+                            
+                            // 解析JSON格式的值
+                            try {
+                                formData[fieldPart.fieldname] = JSON.parse(fieldPart.value);
+                                console.log('📋 解析JSON字段成功:', fieldPart.fieldname, '->', formData[fieldPart.fieldname]);
+                            } catch (e) {
+                                // 如果不是JSON，直接保存为字符串
+                                formData[fieldPart.fieldname] = fieldPart.value;
+                                console.log('📋 直接保存字段:', fieldPart.fieldname, '->', formData[fieldPart.fieldname]);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('📋 处理 parts 时出错:', e);
+                    // 如果已经处理了至少一个文件，继续执行
+                    if (fileArray.length === 0) {
+                        throw e;
+                    }
                 }
-            }
                 
                 console.log(`✅ 文件解析完成, 共 ${fileArray.length} 个文件`)
             } catch (filesError) {
@@ -391,6 +529,25 @@ export async function uploadRoutes(fastify: FastifyInstance) {
 
                     // 保存到数据库
                     console.log('💾 保存到数据库...')
+                    // 确保tagsArray是数组
+                    let tagsArray: string[] = [];
+                    if (formData.tags) {
+                        if (Array.isArray(formData.tags)) {
+                            tagsArray = formData.tags;
+                        } else if (typeof formData.tags === 'string') {
+                            try {
+                                // 尝试解析JSON字符串
+                                const parsedTags = JSON.parse(formData.tags);
+                                if (Array.isArray(parsedTags)) {
+                                    tagsArray = parsedTags;
+                                }
+                            } catch (e) {
+                                console.error('解析tags失败:', e);
+                                tagsArray = [];
+                            }
+                        }
+                    }
+                    
                     const image = await prisma.image.create({
                         data: {
                             filename: file.filename,
@@ -399,10 +556,43 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             bucketName,
                             fileSize: fileBuffer.length,
                             mimeType: file.mimetype,
-                            tags: []
+                            tags: tagsArray,
+                            description: formData.description || null
                         }
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)
+                    
+                    // 处理标签关联和计数
+                    if (tagsArray.length > 0) {
+                        // 获取所有标签记录，不存在则创建
+                        const tagRecords = await Promise.all(
+                            tagsArray.map(async (tagName: string) => {
+                                // 查找或创建标签
+                                return await prisma.tag.upsert({
+                                    where: { name: tagName },
+                                    update: {
+                                        count: { increment: 1 } // 增加计数
+                                    },
+                                    create: {
+                                        name: tagName,
+                                        count: 1 // 初始计数为1
+                                    }
+                                });
+                            })
+                        );
+                        
+                        // 创建ImageTag关联
+                        await Promise.all(
+                            tagRecords.map(tag => 
+                                prisma.imageTag.create({
+                                    data: {
+                                        imageId: image.id,
+                                        tagId: tag.id
+                                    }
+                                })
+                            )
+                        );
+                    }
 
                     // 构建响应数据
                     const { url, thumbnailUrl } = buildImageUrls(image);

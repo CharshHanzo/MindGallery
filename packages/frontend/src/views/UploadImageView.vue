@@ -90,6 +90,12 @@
                 round
               >
                 {{ tag.name }} ({{ tag.count }})
+                <el-button
+                  size="small"
+                  :icon="Close"
+                  circle
+                  @click="removeTag(tag.name)"
+                />
               </el-check-tag>
             </div>
 
@@ -171,7 +177,7 @@ import { ElMessage, ElLoading } from 'element-plus'
 import type { TagInfo } from '@mindgallery/shared/src/types/api'
 import type { CheckboxValueType, UploadFile} from 'element-plus'
 import { uploadImages } from '@/api'
-import { getTagList } from '@/api/modules/tag'
+import { getTagList,deleteTag,createTag } from '@/api/modules/tag'
 import type { BatchUploadImageResponse } from '@mindgallery/shared/src/types/api'
 
 // 上传相关状态
@@ -275,7 +281,7 @@ const onChangeTag = (tagName: string, checked: boolean) => {
 }
 
 // 添加自定义标签
-const addCustomTag = () => {
+const addCustomTag = async () => {
   const tagName = customTagInput.value.trim()
 
   if (!tagName) {
@@ -298,6 +304,12 @@ const addCustomTag = () => {
   }
 
   availableTags.value.push(newTag)
+  // 调用实际的API创建标签
+  const createResponse = await createTag(newTag.name)
+  if (!createResponse.success) {
+    ElMessage.error(`创建标签"${newTag.name}"失败: ${createResponse.message}`)
+    return
+  }
 
   // 自动选中新添加的标签
   selectedTags.value.push(tagName)
@@ -305,6 +317,25 @@ const addCustomTag = () => {
   // 清空输入框
   customTagInput.value = ''
   console.log('添加新标签:', newTag)
+}
+
+// 删除标签
+const removeTag = async (tagName: string) => {
+  try {
+    // 调用实际的API删除标签
+    const response = await deleteTag(tagName)
+    if (response.success) {
+      // 从本地数据中移除标签
+      availableTags.value = availableTags.value.filter(tag => tag.name !== tagName)
+      selectedTags.value = selectedTags.value.filter(tag => tag !== tagName)
+      ElMessage.success(`标签"${tagName}"删除成功`)
+    } else {
+      ElMessage.error(`删除标签"${tagName}"失败: ${response.message}`)
+    }
+  } catch (error) {
+    console.error('删除标签失败:', error)
+    ElMessage.error('删除标签失败')
+  }
 }
 
 // 文件上传相关函数
@@ -798,6 +829,7 @@ defineExpose({
           padding: 8px 16px;
           font-size: 14px;
         }
+
 
         &:hover {
           transform: translateY(-1px);

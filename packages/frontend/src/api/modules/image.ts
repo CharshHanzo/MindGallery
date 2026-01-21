@@ -116,7 +116,7 @@ export const uploadImages = async (files: File[], additionalData?: Record<string
 
   // 添加文件到FormData
   files.forEach(file => {
-    formData.append('file', file)
+    formData.append('files', file)
   })
 
   // 添加额外的表单数据

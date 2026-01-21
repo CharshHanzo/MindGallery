@@ -5,11 +5,11 @@
  */
 export const getTagList = async () => {
   const response = await fetch('/api/tags')
-  
+
   if (!response.ok) {
     throw new Error(`获取标签列表失败: ${response.statusText}`)
   }
-  
+
   return response.json()
 }
 
@@ -24,11 +24,11 @@ export const createTag = async (tagName: string) => {
     },
     body: JSON.stringify({ name: tagName }),
   })
-  
+
   if (!response.ok) {
     throw new Error(`创建标签失败: ${response.statusText}`)
   }
-  
+
   return response.json()
 }
 
@@ -39,12 +39,16 @@ export const deleteTag = async (tagId: string) => {
   const response = await fetch(`/api/tags/${tagId}`, {
     method: 'DELETE',
   })
-  
-  if (!response.ok) {
-    throw new Error(`删除标签失败: ${response.statusText}`)
+
+  const data = await response.json()
+
+  // 如果响应成功，直接返回数据
+  if (response.ok) {
+    return data
   }
-  
-  return response.json()
+
+  // 如果响应失败，仍然返回数据，让调用者处理
+  return data
 }
 
 /**
@@ -58,10 +62,10 @@ export const updateTag = async (tagId: string, newName: string) => {
     },
     body: JSON.stringify({ name: newName }),
   })
-  
+
   if (!response.ok) {
     throw new Error(`更新标签失败: ${response.statusText}`)
   }
-  
+
   return response.json()
 }

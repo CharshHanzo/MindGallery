@@ -89,6 +89,14 @@ export async function tagRoutes(fastify: FastifyInstance) {
             }
         } catch (error) {
             console.log('delete tag error', error)
+            // 检查是否是Prisma的记录未找到错误
+            if (error instanceof Error && 'code' in error && error.code === 'P2025') {
+                return res.code(404).send({
+                    success: false,
+                    message: 'Tag not found',
+                    error: 'The tag you are trying to delete does not exist'
+                })
+            }
             return res.code(500).send({ error: 'Internal server error', details: String(error) })
         }
     })
