@@ -8,105 +8,52 @@ datasource db {
 }
 
 model Image {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   filename    String
-  objectKey   String    // 存储中的唯一标识
-  storageType String    @default("minio") // "minio" 或 "local"
-  bucketName  String?   // 仅minio使用
+  objectKey   String
+  storageType String     @default("minio")
+  bucketName  String?
   fileSize    Int
   mimeType    String
-  uploadTime  DateTime  @default(now())
-  
-  // AI分析字段
+  uploadTime  DateTime   @default(now())
   description String?
-  tags        String[]  // 保留用于兼容，同时使用关联表管理
-  vector      Float[]     // pgvector 向量
-  
-  // 元数据
+  tags        String[]
+  vector      Float[]
   width       Int?
   height      Int?
   cameraModel String?
   location    String?
   takenTime   DateTime?
-  
-  // 关联
   imageTags   ImageTag[]
-  imageAlbums ImageAlbum[]
-  
-  // 索引
+
   @@index([uploadTime])
   @@index([tags])
 }
 
-// 独立的标签表
 model Tag {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  count       Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id          String     @id @default(cuid())
+  name        String     @unique
+  count       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   description String?
   category    String?
-  isActive    Boolean   @default(true)
-  
-  // 关联
+  isActive    Boolean    @default(true)
   imageTags   ImageTag[]
-  
-  // 索引
+
   @@index([name])
   @@index([count])
 }
 
-// 图片标签关联表
 model ImageTag {
   id        String   @id @default(cuid())
   imageId   String
   tagId     String
   createdAt DateTime @default(now())
-  
-  // 关联
   image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
   tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  
-  // 唯一约束，确保一张图片不会重复关联同一个标签
+
   @@unique([imageId, tagId])
-  
-  // 索引
   @@index([imageId])
   @@index([tagId])
 }
-
-// 相册模型
-model Album {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  description String?
-  createdAt   DateTime      @default(now())
-  
-  // 关联
-  imageAlbums ImageAlbum[]
-  
-  // 索引
-  @@index([createdAt])
-}
-
-// 图片相册关联表
-model ImageAlbum {
-  id        String   @id @default(cuid())
-  imageId   String
-  albumId   String
-  createdAt DateTime @default(now())
-  
-  // 关联
-  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
-  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  
-  // 唯一约束，确保一张图片不会重复关联同一个相册
-  @@unique([imageId, albumId])
-  
-  // 索引
-  @@index([imageId])
-  @@index([albumId])
-  @@index([createdAt])
-}
-
