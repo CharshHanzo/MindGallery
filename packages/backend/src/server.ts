@@ -5,6 +5,7 @@ import staticPlugin from '@fastify/static'
 import path from 'path'
 import { uploadRoutes } from './routes/upload.js'
 import { tagRoutes } from './routes/tag.js'
+import { albumRoutes } from './routes/album.js'
 import { config } from './lib/config.js'
 
 const fastify = Fastify({
@@ -59,7 +60,9 @@ async function setup() {
         upload: 'POST /api/upload',
         images: 'GET /api/images',
         imageDetail: 'GET /api/images/:id',
-        deleteImage: 'DELETE /api/images/:id'
+        deleteImage: 'DELETE /api/images/:id',
+        albums: 'GET /api/albums',
+        albumDetail: 'GET /api/albums/:id'
       }
     }
   })

@@ -94,7 +94,7 @@
                   size="small"
                   :icon="Close"
                   circle
-                  @click="removeTag(tag.name)"
+                  @click="openMessageBox(tag.name)"
                 />
               </el-check-tag>
             </div>
@@ -172,7 +172,7 @@
 import { useRouter } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import { Plus, Close, Picture, UploadFilled } from '@element-plus/icons-vue'
-import { ElMessage, ElLoading } from 'element-plus'
+import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
 
 import type { TagInfo } from '@mindgallery/shared/src/types/api'
 import type { CheckboxValueType, UploadFile} from 'element-plus'
@@ -224,16 +224,18 @@ const router = useRouter()
 
 // 标签数据
 const availableTags = ref<TagInfo[]>([
-  { id: 'tag-5rW35pWt', name: '风景', count: 15 },
-  { id: 'tag-5Lq65rW0', name: '人物', count: 8 },
-  { id: 'tag-5a6e5Yqb', name: '建筑', count: 12 },
-  { id: 'tag-5pWw5a2m', name: '动物', count: 6 },
-  { id: 'tag-6Z2e5bqX', name: '美食', count: 9 },
-  { id: 'tag-6L+Z5piv', name: '旅行', count: 11 },
-  { id: 'tag-5Yid5pW0', name: '艺术', count: 7 },
-  { id: 'tag-57uR5bqX', name: '科技', count: 5 },
-  { id: 'tag-6L+Z5LuO', name: '运动', count: 4 },
-  { id: 'tag-55CG6KGo', name: '生活', count: 13 }
+  { id: 'tag-5rW35pWt', name: '看见', count: 15 },
+  { id: 'tag-5Lq65rW0', name: '这个', count: 8 },
+  { id: 'tag-5a6e5Yqb', name: '提示', count: 12 },
+  { id: 'tag-5pWw5a2m', name: '说明', count: 6 },
+  { id: 'tag-6Z2e5bqX', name: '后端', count: 9 },
+  { id: 'tag-6L+Z5piv', name: '没连上', count: 11 },
+  { id: 'tag-5Yid5pW0', name: 'Seeing', count: 7 },
+  { id: 'tag-57uR5bqX', name: 'this message', count: 5 },
+  { id: 'tag-6L+Z5LuO', name: 'means', count: 4 },
+  { id: 'tag-55CG6KGo', name: 'the backend', count: 13 },
+  { id: 'tag-55CG6KGg', name: 'is', count: 13 },
+  { id: 'tag-55CG6KGq', name: 'not connected', count: 13 },
 ])
 
 // 选中的标签
@@ -328,7 +330,6 @@ const removeTag = async (tagName: string) => {
       // 从本地数据中移除标签
       availableTags.value = availableTags.value.filter(tag => tag.name !== tagName)
       selectedTags.value = selectedTags.value.filter(tag => tag !== tagName)
-      ElMessage.success(`标签"${tagName}"删除成功`)
     } else {
       ElMessage.error(`删除标签"${tagName}"失败: ${response.message}`)
     }
@@ -336,6 +337,29 @@ const removeTag = async (tagName: string) => {
     console.error('删除标签失败:', error)
     ElMessage.error('删除标签失败')
   }
+}
+
+const openMessageBox = (tagName: string) => {
+  ElMessageBox.confirm(
+    `你确定要删除标签"${tagName}"吗?`,
+    'Warning',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+    .then(() => {
+      ElMessage({
+        type: 'success',
+        message: `标签"${tagName}"删除成功`,
+      })
+      // 实际删除标签
+      removeTag(tagName)
+    })
+    .catch(() => {
+
+    })
 }
 
 // 文件上传相关函数
