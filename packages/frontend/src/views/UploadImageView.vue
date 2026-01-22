@@ -81,49 +81,74 @@
     <div class="metadata-container">
       <div class="label">
         <span class="text-large font-600 mr-3"> 标签 </span>
-        <br>
-            <div class="label-content" v-for="tag in availableTags" :key="tag.id">
-              <el-check-tag
-                :checked="selectedTags.includes(tag.name)"
-                type="primary"
-                @change="(checked: boolean) => onChangeTag(tag.name, checked)"
-                round
-              >
-                {{ tag.name }} ({{ tag.count }})
-                <el-button
-                  size="small"
-                  :icon="Close"
-                  circle
-                  @click="openMessageBox(tag.name)"
-                />
-              </el-check-tag>
-            </div>
 
-            <!-- 自定义标签输入 -->
-            <div class="custom-tag-input">
-              <el-input
-                v-model="customTagInput"
-                placeholder="输入自定义标签"
-                size="small"
-                style="width: 200px; margin-right: 10px;"
-                @keyup.enter="addCustomTag"
-              >
-                <template #append>
-                  <el-button @click="addCustomTag" :disabled="!customTagInput.trim()">
-                    <el-icon><Plus /></el-icon>
-                  </el-button>
-                </template>
-              </el-input>
-                <el-button type="primary" @click="clearSelectedTags">清空</el-button>
-            </div>
+        <!-- 搜索和添加标签 -->
+        <div class="tag-search-container">
+          <el-autocomplete
+            v-model="customTagInput"
+            :fetch-suggestions="querySearch"
+            placeholder="搜索或创建标签"
+            class="tag-input"
+            @select="handleSelectTag"
+            @keyup.enter="handleInputConfirm"
+            clearable
+          >
+            <template #default="{ item }">
+              <div class="tag-suggestion-item">
+                <span>{{ item.value }}</span>
+                <span class="tag-count" v-if="item.count !== undefined">({{ item.count }})</span>
+              </div>
+            </template>
+            <template #suffix>
+              <el-icon class="cursor-pointer" @click="handleInputConfirm">
+                <Plus />
+              </el-icon>
+            </template>
+          </el-autocomplete>
+        </div>
 
-            </div>
-            <div class="album">
+        <!-- 已选中的标签 -->
+        <div class="selected-tags" v-if="selectedTags.length > 0">
+          <div class="section-title">已选标签:</div>
+          <div class="tags-wrapper">
+            <el-tag
+              v-for="tag in selectedTags"
+              :key="tag"
+              closable
+              type="primary"
+              effect="light"
+              round
+              @close="removeSelectedTag(tag)"
+            >
+              {{ tag }}
+            </el-tag>
+            <el-button type="primary" link size="small" @click="clearSelectedTags">清空</el-button>
+          </div>
+        </div>
+
+        <!-- 推荐标签 (Top 20) -->
+        <div class="recommended-tags" v-if="recommendedTags.length > 0">
+          <div class="section-title">推荐标签:</div>
+          <div class="tags-wrapper">
+            <el-check-tag
+              v-for="tag in recommendedTags"
+              :key="tag.id"
+              :checked="selectedTags.includes(tag.name)"
+              @change="(checked: boolean) => onChangeTag(tag.name, checked)"
+              class="recommend-tag-item"
+            >
+              {{ tag.name }}
+            </el-check-tag>
+          </div>
+        </div>
+      </div>
+
+      <div class="album">
               <span class="text-large font-600 mr-3"> 照片集 </span>
               <br>
-            <el-select v-model="value" placeholder="Select" style="width: 240px" filterable>
+            <el-select v-model="selectedAlbums" placeholder="选择照片集" style="width: 240px" filterable multiple>
           <el-option
-            v-for="item in cities"
+            v-for="item in albums"
             :key="item.value"
             :label="item.label"
             :value="item.value"
@@ -170,14 +195,15 @@
 
 <script lang="ts" setup>
 import { useRouter } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { Plus, Close, Picture, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
 
-import type { TagInfo } from '@mindgallery/shared/src/types/api'
+import type { TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import type { CheckboxValueType, UploadFile} from 'element-plus'
 import { uploadImages } from '@/api'
 import { getTagList,deleteTag,createTag } from '@/api/modules/tag'
+import { getAlbumList, createAlbum, addImagesToAlbum } from '@/api/modules/album'
 import type { BatchUploadImageResponse } from '@mindgallery/shared/src/types/api'
 
 // 上传相关状态
@@ -188,30 +214,37 @@ const uploadProgress = ref(0)
 const uploadRef = ref()
 
 const isAdding = ref(false)
-const value = ref<CheckboxValueType[]>([])
+const selectedAlbums = ref<string[]>([])
 const optionName = ref('')
-const cities = ref([
-  {
-    value: 'city',
-    label: '城市',
-  },
-  {
-    value: 'car',
-    label: '汽车',
-  },
-])
+const albums = ref<Array<{value: string, label: string}>>([])
 const textarea = ref('')
+
 const onAddOption = () => {
   isAdding.value = true
 }
 
-const onConfirm = () => {
+const onConfirm = async () => {
   if (optionName.value) {
-    cities.value.push({
-      label: optionName.value,
-      value: optionName.value,
-    })
-    clear()
+    try {
+      // 调用创建相册接口
+      const response = await createAlbum({ name: optionName.value })
+      if (response.success) {
+        // 添加到列表并选中
+        albums.value.push({
+          label: response.data.name,
+          value: response.data.id,
+        })
+        selectedAlbums.value.push(response.data.id)
+        ElMessage.success('相册创建成功')
+      } else {
+        ElMessage.error(response.message || '创建相册失败')
+      }
+    } catch (error) {
+      console.error('创建相册失败:', error)
+      ElMessage.error('创建相册失败')
+    } finally {
+      clear()
+    }
   }
 }
 
@@ -223,20 +256,14 @@ const clear = () => {
 const router = useRouter()
 
 // 标签数据
-const availableTags = ref<TagInfo[]>([
-  { id: 'tag-5rW35pWt', name: '看见', count: 15 },
-  { id: 'tag-5Lq65rW0', name: '这个', count: 8 },
-  { id: 'tag-5a6e5Yqb', name: '提示', count: 12 },
-  { id: 'tag-5pWw5a2m', name: '说明', count: 6 },
-  { id: 'tag-6Z2e5bqX', name: '后端', count: 9 },
-  { id: 'tag-6L+Z5piv', name: '没连上', count: 11 },
-  { id: 'tag-5Yid5pW0', name: 'Seeing', count: 7 },
-  { id: 'tag-57uR5bqX', name: 'this message', count: 5 },
-  { id: 'tag-6L+Z5LuO', name: 'means', count: 4 },
-  { id: 'tag-55CG6KGo', name: 'the backend', count: 13 },
-  { id: 'tag-55CG6KGg', name: 'is', count: 13 },
-  { id: 'tag-55CG6KGq', name: 'not connected', count: 13 },
-])
+const availableTags = ref<TagInfo[]>([])
+
+// 推荐标签（取前20个热门标签）
+const recommendedTags = computed(() => {
+  return availableTags.value
+    .sort((a, b) => (b.count || 0) - (a.count || 0))
+    .slice(0, 20)
+})
 
 // 选中的标签
 const selectedTags = ref<string[]>([])
@@ -244,10 +271,117 @@ const selectedTags = ref<string[]>([])
 // 自定义标签输入
 const customTagInput = ref('')
 
-// 组件挂载时从API获取标签数据
+interface SuggestionItem {
+  value: string
+  count?: number
+}
+
+// 标签搜索逻辑
+const querySearch = (queryString: string, cb: (results: SuggestionItem[]) => void) => {
+  const results = queryString
+    ? availableTags.value
+        .filter(tag => tag.name.toLowerCase().includes(queryString.toLowerCase()))
+        .map(tag => ({ value: tag.name, count: tag.count }))
+    : availableTags.value.slice(0, 50).map(tag => ({ value: tag.name, count: tag.count })) // 默认显示前50个
+
+  cb(results)
+}
+
+// 选择下拉建议中的标签
+const handleSelectTag = (item: SuggestionItem) => {
+  if (!selectedTags.value.includes(item.value)) {
+    selectedTags.value.push(item.value)
+  }
+  customTagInput.value = ''
+}
+
+// 回车或点击添加按钮确认输入
+const handleInputConfirm = async () => {
+  const tagName = customTagInput.value.trim()
+  if (!tagName) return
+
+  // 如果标签已存在于选中列表
+  if (selectedTags.value.includes(tagName)) {
+    customTagInput.value = ''
+    return
+  }
+
+  // 检查标签是否在已有库中
+  const existingTag = availableTags.value.find(tag => tag.name === tagName)
+
+  if (!existingTag) {
+    // 创建新标签
+    await createNewTag(tagName)
+  }
+
+  // 添加到选中列表
+  selectedTags.value.push(tagName)
+  customTagInput.value = ''
+}
+
+// 创建新标签
+const createNewTag = async (tagName: string) => {
+  try {
+    const response = await createTag(tagName)
+    if (response.success && response.data) {
+      // 添加到本地可用标签库
+      availableTags.value.push(response.data)
+      ElMessage.success(`新标签 "${tagName}" 创建成功`)
+    } else {
+      // 即使后端创建失败（可能已存在），也允许用户暂时使用
+      console.warn('创建标签返回异常:', response)
+    }
+  } catch (error) {
+    console.error('创建标签失败:', error)
+    // 静默失败，不阻断用户操作
+  }
+}
+
+// 移除已选标签
+const removeSelectedTag = (tag: string) => {
+  const index = selectedTags.value.indexOf(tag)
+  if (index > -1) {
+    selectedTags.value.splice(index, 1)
+  }
+}
+
+// 标签选中状态切换（用于推荐标签）
+const onChangeTag = (tagName: string, checked: boolean) => {
+  if (checked) {
+    if (!selectedTags.value.includes(tagName)) {
+      selectedTags.value.push(tagName)
+    }
+  } else {
+    const index = selectedTags.value.indexOf(tagName)
+    if (index > -1) {
+      selectedTags.value.splice(index, 1)
+    }
+  }
+}
+
+// 移除旧的 addCustomTag 和 removeTag 方法，因为逻辑已重构
+// ... (保留旧代码中的 fetchTagsFromAPI 等其他方法)// 组件挂载时从API获取标签和相册数据
 onMounted(async () => {
-  await fetchTagsFromAPI()
+  await Promise.all([
+    fetchTagsFromAPI(),
+    fetchAlbumsFromAPI()
+  ])
 })
+//从API获取相册数据
+const fetchAlbumsFromAPI = async () => {
+  try {
+    const response = await getAlbumList()
+    if (response.success) {
+      albums.value = response.data.map((album: AlbumInfo) => ({
+        label: album.name,
+        value: album.id
+      }))
+    }
+  } catch (error) {
+    console.error('获取相册列表失败:', error)
+    ElMessage.error('获取相册列表失败')
+  }
+}
 
 // 从API获取标签数据
 const fetchTagsFromAPI = async () => {
@@ -262,104 +396,6 @@ const fetchTagsFromAPI = async () => {
     console.error('获取标签数据失败:', error)
     ElMessage.error('获取标签列表失败')
   }
-}
-
-// 标签选中状态切换
-const onChangeTag = (tagName: string, checked: boolean) => {
-  if (checked) {
-    // 添加标签到选中列表
-    if (!selectedTags.value.includes(tagName)) {
-      selectedTags.value.push(tagName)
-    }
-  } else {
-    // 从选中列表中移除标签
-    const index = selectedTags.value.indexOf(tagName)
-    if (index > -1) {
-      selectedTags.value.splice(index, 1)
-    }
-  }
-
-  console.log('当前选中的标签:', selectedTags.value)
-}
-
-// 添加自定义标签
-const addCustomTag = async () => {
-  const tagName = customTagInput.value.trim()
-
-  if (!tagName) {
-    ElMessage.warning('请输入标签名称')
-    return
-  }
-
-  // 检查标签是否已存在
-  const existingTag = availableTags.value.find(tag => tag.name === tagName)
-  if (existingTag) {
-    ElMessage.warning(`标签"${tagName}"已存在`)
-    return
-  }
-
-  // 添加新标签
-  const newTag: TagInfo = {
-    id: Date.now().toString(),
-    name: tagName,
-    count:0
-  }
-
-  availableTags.value.push(newTag)
-  // 调用实际的API创建标签
-  const createResponse = await createTag(newTag.name)
-  if (!createResponse.success) {
-    ElMessage.error(`创建标签"${newTag.name}"失败: ${createResponse.message}`)
-    return
-  }
-
-  // 自动选中新添加的标签
-  selectedTags.value.push(tagName)
-
-  // 清空输入框
-  customTagInput.value = ''
-  console.log('添加新标签:', newTag)
-}
-
-// 删除标签
-const removeTag = async (tagName: string) => {
-  try {
-    // 调用实际的API删除标签
-    const response = await deleteTag(tagName)
-    if (response.success) {
-      // 从本地数据中移除标签
-      availableTags.value = availableTags.value.filter(tag => tag.name !== tagName)
-      selectedTags.value = selectedTags.value.filter(tag => tag !== tagName)
-    } else {
-      ElMessage.error(`删除标签"${tagName}"失败: ${response.message}`)
-    }
-  } catch (error) {
-    console.error('删除标签失败:', error)
-    ElMessage.error('删除标签失败')
-  }
-}
-
-const openMessageBox = (tagName: string) => {
-  ElMessageBox.confirm(
-    `你确定要删除标签"${tagName}"吗?`,
-    'Warning',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
-  )
-    .then(() => {
-      ElMessage({
-        type: 'success',
-        message: `标签"${tagName}"删除成功`,
-      })
-      // 实际删除标签
-      removeTag(tagName)
-    })
-    .catch(() => {
-
-    })
 }
 
 // 文件上传相关函数
@@ -463,9 +499,10 @@ const handleUpload = async () => {
     if (selectedTags.value.length > 0) {
       formData.append('tags', JSON.stringify(selectedTags.value))
     }
-    if (value.value) {
-      formData.append('albumId', value.value.toString())
-    }
+    // 上传接口暂不支持直接传 albumId，需要上传成功后单独调用关联接口
+    // if (selectedAlbums.value.length > 0) {
+    //   formData.append('albumIds', JSON.stringify(selectedAlbums.value))
+    // }
     if (textarea.value.trim()) {
       formData.append('description', textarea.value.trim())
     }
@@ -484,7 +521,7 @@ const handleUpload = async () => {
     previewImages.value.forEach(image => files.push(image.file))
     const result = await uploadImages(files, {
       tags: selectedTags.value,
-      albumId: value.value ? value.value.toString() : undefined,
+      // albumId: value.value ? value.value.toString() : undefined, // 移除旧逻辑
       description: textarea.value.trim()
     })
 
@@ -493,23 +530,41 @@ const handleUpload = async () => {
 
     // 处理上传结果，确保类型安全
     let uploadedCount = 0
+    let uploadedImageIds: string[] = []
+
     if (result.success) {
       // 根据文件数量判断是单张还是批量上传
       if (files.length === 1) {
         // 单张上传，result.data 是单个 ImageInfo
         uploadedCount = 1
+        uploadedImageIds = [(result.data as any).id]
       } else {
         // 批量上传，result.data 是 ImageInfo[]
         uploadedCount = (result as BatchUploadImageResponse).data.length
+        uploadedImageIds = (result as BatchUploadImageResponse).data.map(img => img.id)
       }
 
-      ElMessage.success(`成功上传 ${uploadedCount} 张图片`)
+      // 关联相册
+      if (selectedAlbums.value.length > 0 && uploadedImageIds.length > 0) {
+        try {
+          await Promise.all(selectedAlbums.value.map(albumId =>
+            addImagesToAlbum(albumId, uploadedImageIds)
+          ))
+          ElMessage.success(`成功上传 ${uploadedCount} 张图片并添加到相册`)
+        } catch (albumError) {
+          console.error('关联相册失败:', albumError)
+          ElMessage.warning(`图片上传成功，但关联相册失败`)
+        }
+      } else {
+        ElMessage.success(`成功上传 ${uploadedCount} 张图片`)
+      }
 
       // 清空上传状态
       previewImages.value.forEach(image => URL.revokeObjectURL(image.url))
       previewImages.value = []
       fileList.value = []
       selectedTags.value = []
+      selectedAlbums.value = []
       textarea.value = ''
 
       // 延迟跳转，让用户看到成功消息
@@ -829,105 +884,35 @@ defineExpose({
       padding-left: 1.5rem;
     }
 
-    .label-content {
-      margin-bottom: 0.5rem;
-      display: inline-block;
-      margin-right: 0.5rem;
+    .tag-search-container {
+      margin-bottom: 1rem;
 
-      @media (min-width: 768px) {
-        margin-bottom: 0.75rem;
-        margin-right: 0.75rem;
-      }
-
-      .el-check-tag {
-        border-radius: 16px;
-        padding: 6px 12px;
-        font-weight: 500;
-        transition: $transition-base;
-        border: 1px solid $gray-200;
-        font-size: 12px;
-        background: $white;
-        color: $gray-700;
-
-        @media (min-width: 768px) {
-          padding: 8px 16px;
-          font-size: 14px;
-        }
-
-
-        &:hover {
-          transform: translateY(-1px);
-          box-shadow: $active-shadow;
-          border-color: $active-border-color;
-          color: $active-color;
-        }
-
-        &.is-checked {
-          background: linear-gradient(135deg, $active-background, $active-hover-bg);
-          border-color: $active-border-color;
-          color: $active-color;
-          box-shadow: $active-shadow;
-
-          &:hover {
-            background: linear-gradient(135deg, $active-hover-bg, color.adjust($active-hover-bg, $lightness: -5%));
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba($active-color, 0.3);
-          }
-        }
+      .tag-input {
+        width: 100%;
+        max-width: 300px;
       }
     }
 
-    .custom-tag-input {
-      margin-top: 1rem;
+    .section-title {
+      font-size: 14px;
+      color: $gray-600;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .tags-wrapper {
       display: flex;
-      align-items: center;
       flex-wrap: wrap;
       gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
 
-      @media (min-width: 768px) {
-        margin-top: 1.5rem;
-        gap: 0.75rem;
-      }
+    .recommend-tag-item {
+      cursor: pointer;
+      transition: all 0.2s;
 
-      .el-input {
-        width: 100%;
-        max-width: 200px;
-
-        @media (min-width: 768px) {
-          width: auto;
-        }
-
-        .el-input__wrapper {
-          border-radius: 20px;
-          border: 1px solid $gray-200;
-
-          &:hover {
-            border-color: $winter-sky-5;
-          }
-        }
-      }
-
-      .el-button {
-        border-radius: 20px;
-        transition: $transition-base;
-
-        &:disabled {
-          opacity: 0.6;
-        }
-
-        // 自定义标签按钮的激活状态
-        &:not(:disabled):hover {
-          transform: translateY(-1px);
-          box-shadow: $active-shadow;
-        }
-
-        &:active,
-        &.is-active {
-          background: $active-background;
-          color: $active-color;
-          border-color: $active-border-color;
-          transform: translateY(0);
-        }
+      &:hover {
+        color: $active-color;
       }
     }
   }

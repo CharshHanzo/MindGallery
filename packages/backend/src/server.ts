@@ -49,6 +49,9 @@ async function setup() {
   // 注册标签路由
   await fastify.register(tagRoutes)
 
+  // 注册相册路由
+  await fastify.register(albumRoutes)
+
   // 根路由
   fastify.get('/', async () => {
     return {

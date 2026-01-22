@@ -1,9 +1,17 @@
 // 相册相关API接口
+import type {
+  AlbumsListResponse,
+  CreateAlbumResponse,
+  AlbumDetailResponse,
+  CreateAlbumRequest,
+  AlbumImageResponse,
+  AlbumImageRequest
+} from '@mindgallery/shared'
 
 /**
  * 获取相册列表
  */
-export const getAlbumList = async () => {
+export const getAlbumList = async (): Promise<AlbumsListResponse> => {
   const response = await fetch('/api/albums')
 
   if (!response.ok) {
@@ -16,13 +24,13 @@ export const getAlbumList = async () => {
 /**
  * 创建新相册
  */
-export const createAlbum = async (albumName: string) => {
+export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
   const response = await fetch('/api/albums', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name: albumName }),
+    body: JSON.stringify(data),
   })
 
   if (!response.ok) {
@@ -35,7 +43,7 @@ export const createAlbum = async (albumName: string) => {
 /**
  * 获取相册详情
  */
-export const getAlbumDetail = async (albumId: string) => {
+export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailResponse> => {
   const response = await fetch(`/api/albums/${albumId}`)
 
   if (!response.ok) {
@@ -48,7 +56,7 @@ export const getAlbumDetail = async (albumId: string) => {
 /**
  * 更新相册
  */
-export const updateAlbum = async (albumId: string, data: { name?: string; description?: string }) => {
+export const updateAlbum = async (albumId: string, data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
   const response = await fetch(`/api/albums/${albumId}`, {
     method: 'PUT',
     headers: {
@@ -67,7 +75,7 @@ export const updateAlbum = async (albumId: string, data: { name?: string; descri
 /**
  * 删除相册
  */
-export const deleteAlbum = async (albumId: string) => {
+export const deleteAlbum = async (albumId: string): Promise<{ success: boolean; message: string }> => {
   const response = await fetch(`/api/albums/${albumId}`, {
     method: 'DELETE',
   })
@@ -82,17 +90,29 @@ export const deleteAlbum = async (albumId: string) => {
 /**
  * 添加图片到相册
  */
-export const addImagesToAlbum = async (albumId: string, imageIds: string[]) => {
+export const addImagesToAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
+  const body: AlbumImageRequest = { imageIds }
   const response = await fetch(`/api/albums/${albumId}/images`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ imageIds }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
-    throw new Error(`添加图片到相册失败: ${response.statusText}`)
+    let errorMessage = response.statusText
+    try {
+      const errorData = await response.json()
+      if (errorData && errorData.details) {
+        errorMessage = errorData.details
+      } else if (errorData && errorData.error) {
+        errorMessage = errorData.error
+      }
+    } catch (e) {
+      // ignore json parse error
+    }
+    throw new Error(`添加图片到相册失败: ${errorMessage}`)
   }
 
   return response.json()
@@ -101,13 +121,14 @@ export const addImagesToAlbum = async (albumId: string, imageIds: string[]) => {
 /**
  * 从相册移除图片
  */
-export const removeImagesFromAlbum = async (albumId: string, imageIds: string[]) => {
+export const removeImagesFromAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
+  const body: AlbumImageRequest = { imageIds }
   const response = await fetch(`/api/albums/${albumId}/images`, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ imageIds }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {

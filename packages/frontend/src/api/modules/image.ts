@@ -139,16 +139,7 @@ export const uploadImages = async (files: File[], additionalData?: Record<string
   // 根据文件数量选择调用哪个接口
   if (files.length === 1) {
     // 单张上传
-    const result = await uploadSingleImage(formData)
-    // 确保返回的数据结构与批量上传一致
-    if (result.data && !Array.isArray(result.data)) {
-      return {
-        ...result,
-        data: [result.data],
-        count:1
-      }
-    }
-    return result
+    return uploadSingleImage(formData)
   } else {
     // 批量上传
     return uploadMultipleImages(formData)

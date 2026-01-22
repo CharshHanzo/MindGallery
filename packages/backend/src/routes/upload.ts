@@ -286,7 +286,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     fileSize: fileBuffer.length,
                     mimeType: fileData.mimetype,
                     tags: tagsArray,
-                    description: formData.description || null
+                    description: formData.description ? String(formData.description) : null
                 }
             })
             
@@ -566,7 +566,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             fileSize: fileBuffer.length,
                             mimeType: file.mimetype,
                             tags: tagsArray,
-                            description: formData.description || null
+                            description: formData.description ? String(formData.description) : null
                         }
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)

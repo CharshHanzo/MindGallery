@@ -252,27 +252,19 @@ export async function albumRoutes(fastify: FastifyInstance) {
             }
             
             // 批量添加图片到相册
-            let addedCount = 0
+            console.log(`Adding images to album ${id}:`, imageIds);
+
+            // 使用 createMany 并跳过重复项，比单条 upsert 更高效
+            const result = await prisma.imageAlbum.createMany({
+                data: imageIds.map(imageId => ({
+                    imageId,
+                    albumId: id
+                })),
+                skipDuplicates: true
+            })
             
-            await prisma.$transaction(
-                imageIds.map(imageId => 
-                    prisma.imageAlbum.upsert({
-                        where: {
-                            imageId_albumId: {
-                                imageId,
-                                albumId: id
-                            }
-                        },
-                        create: {
-                            imageId,
-                            albumId: id
-                        },
-                        update: {}
-                    })
-                )
-            )
-            
-            addedCount = imageIds.length // 简化处理，实际上可能有重复
+            const addedCount = result.count
+            console.log(`Successfully added ${addedCount} images to album ${id}`);
             
             const response: AlbumImageResponse = {
                 success: true,
@@ -286,7 +278,11 @@ export async function albumRoutes(fastify: FastifyInstance) {
             return response
         } catch (error) {
             console.error('add images to album error', error)
-            return res.code(500).send({ error: 'Internal server error', details: String(error) })
+            return res.code(500).send({ 
+                error: 'Internal server error', 
+                details: error instanceof Error ? error.message : String(error),
+                code: (error as any).code 
+            })
         }
     })
 
