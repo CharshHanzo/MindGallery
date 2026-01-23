@@ -4,7 +4,7 @@ export class ClipService {
   private readonly baseUrl: string
 
   // Use 127.0.0.1 explicitly to avoid IPv6 resolution issues with Node.js
-  constructor(baseUrl: string = 'http://127.0.0.1:5000') {
+  constructor(baseUrl: string = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl
   }
 
