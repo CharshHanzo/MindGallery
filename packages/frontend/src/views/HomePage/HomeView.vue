@@ -80,7 +80,6 @@ onUnmounted(() => {
         <div class="cover-overlay"></div>
       </div>
       <div class="action-btn" :class="{ 'scrolled': isScrolled }">
-        <el-icon @click="router.push('/upload')"><Plus /></el-icon>
         <el-icon @click="router.push('/setting')"><Setting /></el-icon>
       </div>
       <div class="user-info">
@@ -119,6 +118,11 @@ onUnmounted(() => {
           </button>
         </div>
 
+        <div class="actions">
+          <el-button type="primary" round @click="router.push('/upload')">
+            <el-icon class="el-icon--left"><Plus /></el-icon>上传照片
+          </el-button>
+        </div>
       </div>
       <div class="content-body">
         <router-view />

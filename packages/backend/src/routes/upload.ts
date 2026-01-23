@@ -806,7 +806,14 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     [sortBy]: sortOrder
                 },
                 skip: offset,
-                take: limit
+                take: limit,
+                include: {
+                    imageAlbums: {
+                        include: {
+                            album: true
+                        }
+                    }
+                }
             })
             
             // 转换为前端需要的格式
@@ -825,7 +832,12 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     ...(img.width && { width: img.width }),
                     ...(img.height && { height: img.height }),
                     ...(img.takenTime && { takenTime: img.takenTime.toISOString() }),
-                    albums: [] // 相册功能暂未实现
+                    albums: img.imageAlbums?.map((ia: any) => ({
+                        id: ia.album.id,
+                        name: ia.album.name,
+                        description: ia.album.description,
+                        createdAt: ia.album.createdAt
+                    })) || []
                 }
             })
             
@@ -895,6 +907,8 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const { id } = req.params
             const updateData = req.body as {
                 description?: string;
+                filename?: string;
+                tags?: string[];
                 albumIds?: string[];
             }
 
@@ -908,6 +922,8 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const updateDataInput: any = {}
             
             if (updateData.description !== undefined) updateDataInput.description = updateData.description
+            if (updateData.filename !== undefined) updateDataInput.filename = updateData.filename
+            if (updateData.tags !== undefined) updateDataInput.tags = updateData.tags
             
             // 相册功能暂未实现，移除相册更新逻辑
             
@@ -915,6 +931,38 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 where: { id },
                 data: updateDataInput
             })
+
+            // 如果更新了标签，需要同步更新标签关联
+            if (updateData.tags) {
+                // 1. 删除旧的标签关联
+                await prisma.imageTag.deleteMany({
+                    where: { imageId: id }
+                })
+
+                // 2. 处理新标签
+                if (updateData.tags.length > 0) {
+                     const tagRecords = await Promise.all(
+                        updateData.tags.map(async (tagName: string) => {
+                            return await prisma.tag.upsert({
+                                where: { name: tagName },
+                                update: { count: { increment: 1 } },
+                                create: { name: tagName, count: 1 }
+                            });
+                        })
+                    );
+                    
+                    await Promise.all(
+                        tagRecords.map(tag => 
+                            prisma.imageTag.create({
+                                data: {
+                                    imageId: id,
+                                    tagId: tag.id
+                                }
+                            })
+                        )
+                    );
+                }
+            }
 
             // 构建响应数据
             const { url, thumbnailUrl } = buildImageUrls(updatedImage);
@@ -932,7 +980,12 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 ...(updatedImage.width && { width: updatedImage.width }),
                 ...(updatedImage.height && { height: updatedImage.height }),
                 ...(updatedImage.takenTime && { takenTime: updatedImage.takenTime.toISOString() }),
-                albums: [] // 相册功能暂未实现
+                albums: (updatedImage as any).imageAlbums?.map((ia: any) => ({
+                    id: ia.album.id,
+                    name: ia.album.name,
+                    description: ia.album.description,
+                    createdAt: ia.album.createdAt
+                })) || []
             }
 
             const response: ImageDetailResponse = {

@@ -57,6 +57,7 @@ export interface BatchUploadImageResponse {
 
 // 单张图片更新请求
 export interface UpdateImageRequest {
+  filename?: string;
   title?: string;
   description?: string;
   tags?: string[];
@@ -67,6 +68,7 @@ export interface UpdateImageRequest {
 export interface BatchUpdateImagesRequest {
   imageIds: string[];
   updateData: {
+    filename?: string;
     title?: string;
     description?: string;
     tags?: string[];
