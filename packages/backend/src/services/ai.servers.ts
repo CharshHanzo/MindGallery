@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { config } from '../lib/config'
+import { clipService } from './clip.service'
 
 export interface AIImageAnalysis {
   description: string
@@ -18,11 +19,13 @@ export class AIService {
 
   // 分析图片内容
   async analyzeImage(imageBuffer: Buffer): Promise<AIImageAnalysis> {
+    let description = '图片分析失败'
+    let tags: string[] = ['未分析']
+    let vector: number[] = []
+
+    // 1. 获取文本描述 (Ollama)
     try {
-      // 将图片转为base64
       const base64Image = imageBuffer.toString('base64')
-      
-      // 调用Ollama的视觉模型
       const response = await axios.post(`${this.baseUrl}/api/generate`, {
         model: this.model,
         prompt: '详细描述这张图片的内容，包括主要物体、场景、颜色、氛围等',
@@ -30,22 +33,23 @@ export class AIService {
         stream: false
       })
 
-      const description = response.data.response
-      
-      // 提取标签（简单实现，后续可以优化）
-      const tags = this.extractTags(description)
-      
-      return {
-        description,
-        tags
-      }
+      description = response.data.response
+      tags = this.extractTags(description)
     } catch (error) {
-      console.error('AI分析失败:', error)
-      // 返回默认值，避免影响上传流程
-      return {
-        description: '图片分析失败',
-        tags: ['未分析']
-      }
+      console.error('AI分析(Ollama)失败:', error)
+    }
+
+    // 2. 获取图片向量 (CLIP)
+    try {
+      vector = await clipService.encodeImage(imageBuffer)
+    } catch (error) {
+      console.error('AI向量化(CLIP)失败:', error)
+    }
+
+    return {
+      description,
+      tags,
+      ...(vector.length > 0 ? { vector } : {})
     }
   }
 
@@ -78,17 +82,8 @@ export class AIService {
 
   // 生成文本向量（用于搜索）
   async generateTextVector(text: string): Promise<number[]> {
-    try {
-      const response = await axios.post(`${this.baseUrl}/api/embeddings`, {
-        model: this.model,
-        prompt: text
-      })
-      
-      return response.data.embedding
-    } catch (error) {
-      console.error('向量生成失败:', error)
-      return []
-    }
+    // 使用 CLIP 服务替代 Ollama
+    return await clipService.encodeText(text)
   }
 }
 

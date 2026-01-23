@@ -36,3 +36,7 @@ temp/
 # Ollama
 .ollama/
 models/
+
+**/venv/
+**/.venv/
+**/env/
