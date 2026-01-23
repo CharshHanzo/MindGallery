@@ -90,6 +90,17 @@
             </template>
           </el-image>
 
+          <div class="image-actions" @click.stop>
+            <el-button 
+              type="danger" 
+              circle 
+              size="small" 
+              :icon="Delete" 
+              @click="handleDelete(image)"
+              title="删除图片"
+            />
+          </div>
+
           <!-- 悬停显示信息 -->
           <div class="image-overlay">
             <div class="image-info">
@@ -207,8 +218,13 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="detailDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveImageInfo" :loading="saving">保存修改</el-button>
+          <div class="left-actions">
+            <el-button type="danger" @click="handleDeleteFromDialog" :icon="Delete">删除图片</el-button>
+          </div>
+          <div class="right-actions">
+            <el-button @click="detailDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveImageInfo" :loading="saving">保存修改</el-button>
+          </div>
         </span>
       </template>
     </el-dialog>
@@ -217,10 +233,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue'
-import { Search, SortUp, SortDown, Picture, Loading } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Search, SortUp, SortDown, Picture, Loading, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
-import { getImageList, updateImageInfo } from '@/api/modules/image'
+import { getImageList, updateImageInfo, deleteImage } from '@/api/modules/image'
 import { getTagList } from '@/api/modules/tag'
 import { getAlbumList } from '@/api/modules/album'
 
@@ -386,6 +402,62 @@ const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
+
+// 删除图片逻辑
+const handleDelete = (image: ImageInfo) => {
+  ElMessageBox.confirm(
+    `确定要删除图片 "${image.filename}" 吗？此操作不可恢复。`,
+    '删除确认',
+    {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    try {
+      await deleteImage(image.id)
+      ElMessage.success('删除成功')
+      // 从列表中移除
+      images.value = images.value.filter(item => item.id !== image.id)
+      total.value--
+    } catch (error) {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败，请稍后重试')
+    }
+  }).catch(() => {
+    // 取消删除
+  })
+}
+
+const handleDeleteFromDialog = () => {
+  if (!currentImage.value) return
+  
+  ElMessageBox.confirm(
+    `确定要删除图片 "${currentImage.value.filename}" 吗？此操作不可恢复。`,
+    '删除确认',
+    {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    try {
+      await deleteImage(currentImage.value!.id)
+      ElMessage.success('删除成功')
+      // 关闭对话框
+      detailDialogVisible.value = false
+      // 从列表中移除
+      images.value = images.value.filter(item => item.id !== currentImage.value!.id)
+      total.value--
+      currentImage.value = null
+    } catch (error) {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败，请稍后重试')
+    }
+  }).catch(() => {
+    // 取消删除
+  })
+}
 </script>
 
 <style scoped lang="scss">
@@ -491,6 +563,10 @@ const formatFileSize = (bytes: number): string => {
       opacity: 1;
     }
 
+    .image-actions {
+      opacity: 1;
+    }
+
     .gallery-image {
       transform: scale(1.05);
     }
@@ -501,6 +577,15 @@ const formatFileSize = (bytes: number): string => {
     height: 100%;
     display: block;
     transition: transform 0.5s;
+  }
+
+  .image-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10;
   }
 
   .image-placeholder, .image-error {
@@ -600,6 +685,13 @@ const formatFileSize = (bytes: number): string => {
         }
       }
     }
+  }
+
+  .dialog-footer {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 </style>
