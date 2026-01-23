@@ -37,10 +37,12 @@ function buildImageUrls(img: any): { url: string; thumbnailUrl: string } {
   let url: string
   let thumbnailUrl: string
   
-  if (img.storageType === 'minio' && img.bucketName && config.storage.minio) {
-    const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
-    url = `http://${minioConfig.endpoint}:${minioConfig.port}/${img.bucketName}/${img.objectKey}`;
-    thumbnailUrl = `http://${minioConfig.endpoint}:${minioConfig.port}/${img.bucketName}/${img.objectKey.replace(/(\.[^.]+)$/, '_thumbnail$1')}`;
+  const isMinio = img.storageType === 'minio' || (config.storage.type === 'minio' && !img.storageType);
+
+  if (isMinio) {
+    // 使用后端代理路由
+    url = `/api/assets/${img.id}`;
+    thumbnailUrl = `/api/assets/${img.id}?type=thumbnail`;
   } else {
     url = `/uploads/${img.objectKey}`;
     thumbnailUrl = `/uploads/${img.objectKey.replace(/(\.[^.]+)$/, '_thumbnail$1')}`;
@@ -50,6 +52,68 @@ function buildImageUrls(img: any): { url: string; thumbnailUrl: string } {
 }
 
 export async function uploadRoutes(fastify: FastifyInstance) {
+    // 代理图片访问路由
+    fastify.get<{ Params: { id: string }, Querystring: { type?: 'thumbnail' | 'original' } }>('/api/assets/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { type } = req.query;
+            
+            const image = await prisma.image.findUnique({
+                where: { id }
+            });
+            
+            if (!image) {
+                return res.code(404).send({ error: 'Image not found' });
+            }
+            
+            const isMinio = image.storageType === 'minio' || (config.storage.type === 'minio' && !image.storageType);
+            
+            if (isMinio && config.storage.minio) {
+                const bucket = image.bucketName || config.storage.minio.bucket;
+                let objectKey = image.objectKey;
+                
+                if (type === 'thumbnail') {
+                    const fileExt = path.extname(objectKey);
+                    objectKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`;
+                }
+                
+                try {
+                    const dataStream = await minioClient.getObject(bucket, objectKey);
+                    
+                    // 设置正确的 Content-Type
+                    res.header('Content-Type', image.mimeType);
+                    res.header('Cache-Control', 'public, max-age=31536000'); // 缓存一年
+                    
+                    return res.send(dataStream);
+                } catch (minioError) {
+                    console.error(`Error fetching from MinIO: ${minioError}`);
+                    // 如果获取缩略图失败，尝试获取原图（降级策略）
+                    if (type === 'thumbnail') {
+                        try {
+                             const dataStream = await minioClient.getObject(bucket, image.objectKey);
+                             res.header('Content-Type', image.mimeType);
+                             return res.send(dataStream);
+                        } catch (retryError) {
+                             return res.code(404).send({ error: 'File not found in storage' });
+                        }
+                    }
+                    return res.code(404).send({ error: 'File not found in storage' });
+                }
+            } else {
+                // 本地存储 - 重定向到静态文件服务
+                let objectKey = image.objectKey;
+                if (type === 'thumbnail') {
+                    const fileExt = path.extname(objectKey);
+                    objectKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`;
+                }
+                return res.redirect(`/uploads/${objectKey}`);
+            }
+        } catch (error) {
+            console.error('Asset proxy error:', error);
+            return res.code(500).send({ error: 'Internal server error' });
+        }
+    });
+
     // 确保MinIO存储桶存在
     if (config.storage.type === 'minio') {
         await ensureBucket()
@@ -225,13 +289,13 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             // 3. 生成随机唯一文件名
             const fileExt = path.extname(fileData.filename)
             const objectKey = `${randomUUID()}${fileExt}`
-            const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
+            // const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
             
             let storageType: string
             let bucketName: string | null = null
             
-            // 4. 生成缩略图
-            const thumbnailBuffer = await generateThumbnail(fileBuffer)
+            // 4. 生成缩略图 (已禁用)
+            // const thumbnailBuffer = await generateThumbnail(fileBuffer)
 
             if (config.storage.type === 'minio' && config.storage.minio) {
                 // 使用MinIO存储
@@ -239,21 +303,15 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 const minioConfig = config.storage.minio as NonNullable<typeof config.storage.minio>;
                 bucketName = minioConfig.bucket
                 
-                // 上传原图和缩略图到MinIO
-                await Promise.all([
-                    minioClient.putObject(bucketName, objectKey, fileBuffer),
-                    minioClient.putObject(bucketName, thumbnailKey, thumbnailBuffer)
-                ])
+                // 上传原图到MinIO
+                await minioClient.putObject(bucketName, objectKey, fileBuffer)
             } else {
                 // 使用本地存储
                 storageType = 'local'
                 const uploadDir = path.join(process.cwd(), 'uploads')
                 
-                // 保存原图和缩略图
-                await Promise.all([
-                    fs.writeFile(path.join(uploadDir, objectKey), fileBuffer),
-                    fs.writeFile(path.join(uploadDir, thumbnailKey), thumbnailBuffer)
-                ])
+                // 保存原图
+                await fs.writeFile(path.join(uploadDir, objectKey), fileBuffer)
             }
 
             // 5. 保存到数据库
@@ -513,14 +571,14 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     // 生成文件名和缩略图
                     const fileExt = path.extname(file.filename)
                     const objectKey = `${randomUUID()}${fileExt}`
-                    const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
+                    // const thumbnailKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
                     
-                    console.log(`📁 生成文件名: ${objectKey}, 缩略图: ${thumbnailKey}`)
+                    console.log(`📁 生成文件名: ${objectKey}`)
                     
-                    // 生成缩略图
-                    console.log('🖼️ 生成缩略图...')
-                    const thumbnailBuffer = await generateThumbnail(fileBuffer)
-                    console.log(`✅ 缩略图生成完成, 大小: ${thumbnailBuffer.length} bytes`)
+                    // 生成缩略图 (已禁用)
+                    // console.log('🖼️ 生成缩略图...')
+                    // const thumbnailBuffer = await generateThumbnail(fileBuffer)
+                    // console.log(`✅ 缩略图生成完成, 大小: ${thumbnailBuffer.length} bytes`)
                     
                     let storageType: string
                     let bucketName: string | null = null
@@ -536,10 +594,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         
                         console.log(`📦 使用MinIO存储, 存储桶: ${bucketName}`)
                         
-                        await Promise.all([
-                            minioClient.putObject(bucketName, objectKey, fileBuffer),
-                            minioClient.putObject(bucketName, thumbnailKey, thumbnailBuffer)
-                        ])
+                        await minioClient.putObject(bucketName, objectKey, fileBuffer)
                         console.log('✅ MinIO存储完成')
                     } else {
                         // 本地存储
@@ -548,10 +603,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         
                         console.log(`📂 使用本地存储, 目录: ${uploadDir}`)
                         
-                        await Promise.all([
-                            fs.writeFile(path.join(uploadDir, objectKey), fileBuffer),
-                            fs.writeFile(path.join(uploadDir, thumbnailKey), thumbnailBuffer)
-                        ])
+                        await fs.writeFile(path.join(uploadDir, objectKey), fileBuffer)
                         console.log('✅ 本地存储完成')
                     }
 
@@ -710,6 +762,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             const limit = parseInt(queryParams.limit || '50')
             const albumId = queryParams.albumId
             const search = queryParams.search
+            const tags = queryParams.tags // 支持按标签筛选
             const sortBy = queryParams.sortBy || 'uploadTime'
             const sortOrder = queryParams.sortOrder || 'desc'
             
@@ -727,6 +780,18 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     { description: { contains: search, mode: 'insensitive' } },
                     { filename: { contains: search, mode: 'insensitive' } }
                 ]
+            }
+
+            // 按标签筛选
+            if (tags) {
+                const tagsList = typeof tags === 'string' ? tags.split(',') : tags;
+                if (tagsList.length > 0) {
+                    // 使用 hasSome (OR) 逻辑，只要包含其中一个标签即可
+                    // 如果需要 AND 逻辑，可以使用 hasEvery
+                    whereClause.tags = {
+                        hasSome: tagsList
+                    }
+                }
             }
             
             // 查询图片总数

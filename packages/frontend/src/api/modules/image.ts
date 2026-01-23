@@ -44,10 +44,21 @@ export const uploadMultipleImages = async (formData: FormData): Promise<BatchUpl
 /**
  * 获取图片列表
  */
-export const getImageList = async (params?: { page?: number; limit?: number }): Promise<ImagesListResponse> => {
+export const getImageList = async (params?: { 
+  page?: number; 
+  limit?: number;
+  search?: string;
+  tags?: string[];
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<ImagesListResponse> => {
   const queryParams = new URLSearchParams()
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.limit) queryParams.append('limit', params.limit.toString())
+  if (params?.search) queryParams.append('search', params.search)
+  if (params?.tags && params.tags.length > 0) queryParams.append('tags', params.tags.join(','))
+  if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
+  if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder)
 
   const response = await fetch(`/api/images?${queryParams}`)
 
