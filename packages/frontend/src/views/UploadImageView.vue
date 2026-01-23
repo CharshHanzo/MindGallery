@@ -55,8 +55,12 @@
             v-for="(image, index) in previewImages"
             :key="index"
             class="preview-item"
+            @click="openImageSettings(index)"
           >
             <img :src="image.url" :alt="image.name" />
+            <div class="tag-badge" v-if="image.tags && image.tags.length > 0">
+               <el-tag size="small" type="success" effect="dark">{{ image.tags.length }}</el-tag>
+            </div>
             <div class="preview-info">
               <span class="file-name">{{ image.name }}</span>
               <span class="file-size">{{ formatFileSize(image.size) }}</span>
@@ -191,6 +195,66 @@
 
     </div>
 
+    <!-- 单张图片设置弹窗 -->
+    <el-dialog
+      v-model="imageSettingsVisible"
+      title="图片设置"
+      width="500px"
+      append-to-body
+    >
+      <div v-if="currentImageIndex > -1 && previewImages[currentImageIndex]" class="image-settings-content">
+        <div class="current-image-preview">
+          <img :src="previewImages[currentImageIndex].url" :alt="previewImages[currentImageIndex].name" />
+        </div>
+
+        <div class="current-image-tags">
+          <div class="section-title">单独设置标签:</div>
+          <div class="tags-wrapper">
+            <el-tag
+              v-for="tag in currentImageTags"
+              :key="tag"
+              closable
+              type="success"
+              effect="light"
+              round
+              @close="removeCurrentImageTag(tag)"
+            >
+              {{ tag }}
+            </el-tag>
+          </div>
+
+          <el-autocomplete
+            v-model="currentTagInput"
+            :fetch-suggestions="querySearch"
+            placeholder="为该图片添加标签"
+            class="tag-input"
+            @select="handleSelectCurrentTag"
+            @keyup.enter="handleCurrentTagInputConfirm"
+            clearable
+          >
+            <template #default="{ item }">
+              <div class="tag-suggestion-item">
+                <span>{{ item.value }}</span>
+                <span class="tag-count" v-if="item.count !== undefined">({{ item.count }})</span>
+              </div>
+            </template>
+            <template #suffix>
+              <el-icon class="cursor-pointer" @click="handleCurrentTagInputConfirm">
+                <Plus />
+              </el-icon>
+            </template>
+          </el-autocomplete>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="imageSettingsVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveImageSettings">
+            确认
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -208,10 +272,70 @@ import type { BatchUploadImageResponse } from '@mindgallery/shared/src/types/api
 
 // 上传相关状态
 const fileList = ref<UploadFile[]>([])
-const previewImages = ref<Array<{url: string, name: string, size: number, file: File}>>([])
+const previewImages = ref<Array<{url: string, name: string, size: number, file: File, tags: string[]}>>([])
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadRef = ref()
+
+// 单张图片设置相关
+const imageSettingsVisible = ref(false)
+const currentImageIndex = ref(-1)
+const currentImageTags = ref<string[]>([])
+const currentTagInput = ref('')
+
+// 打开单张图片设置
+const openImageSettings = (index: number) => {
+  currentImageIndex.value = index
+  // 复制当前图片的标签
+  currentImageTags.value = [...previewImages.value[index].tags]
+  currentTagInput.value = ''
+  imageSettingsVisible.value = true
+}
+
+// 保存单张图片设置
+const saveImageSettings = () => {
+  if (currentImageIndex.value > -1) {
+    previewImages.value[currentImageIndex.value].tags = [...currentImageTags.value]
+    ElMessage.success('图片标签已更新')
+  }
+  imageSettingsVisible.value = false
+}
+
+// 单张图片标签输入确认
+const handleCurrentTagInputConfirm = async () => {
+  const tagName = currentTagInput.value.trim()
+  if (!tagName) return
+
+  if (currentImageTags.value.includes(tagName)) {
+    currentTagInput.value = ''
+    return
+  }
+
+  // 检查是否在库中，不在则创建
+  const existingTag = availableTags.value.find(tag => tag.name === tagName)
+  if (!existingTag) {
+    await createNewTag(tagName)
+  }
+
+  currentImageTags.value.push(tagName)
+  currentTagInput.value = ''
+}
+
+// 移除单张图片的标签
+const removeCurrentImageTag = (tag: string) => {
+  const index = currentImageTags.value.indexOf(tag)
+  if (index > -1) {
+    currentImageTags.value.splice(index, 1)
+  }
+}
+
+// 单张图片标签选择
+const handleSelectCurrentTag = (item: SuggestionItem) => {
+  if (!currentImageTags.value.includes(item.value)) {
+    currentImageTags.value.push(item.value)
+  }
+  currentTagInput.value = ''
+}
 
 const isAdding = ref(false)
 const selectedAlbums = ref<string[]>([])
@@ -409,7 +533,8 @@ const handleFileChange = (file: UploadFile) => {
       url: previewUrl,
       name: file.name,
       size: file.size || 0,
-      file: file.raw
+      file: file.raw,
+      tags: []
     })
   }
 }
@@ -488,24 +613,16 @@ const handleUpload = async () => {
   })
 
   try {
-    const formData = new FormData()
+    // 构造 metadata
+    const metadata: Record<string, { tags: string[] }> = {}
+    const files: File[] = []
 
-    // 添加图片文件
     previewImages.value.forEach(image => {
-      formData.append('files', image.file)
+      files.push(image.file)
+      if (image.tags && image.tags.length > 0) {
+        metadata[image.file.name] = { tags: image.tags }
+      }
     })
-
-    // 添加元数据
-    if (selectedTags.value.length > 0) {
-      formData.append('tags', JSON.stringify(selectedTags.value))
-    }
-    // 上传接口暂不支持直接传 albumId，需要上传成功后单独调用关联接口
-    // if (selectedAlbums.value.length > 0) {
-    //   formData.append('albumIds', JSON.stringify(selectedAlbums.value))
-    // }
-    if (textarea.value.trim()) {
-      formData.append('description', textarea.value.trim())
-    }
 
     // 模拟上传进度
     const progressInterval = setInterval(() => {
@@ -516,12 +633,9 @@ const handleUpload = async () => {
     }, 200)
 
     // 调用上传API
-    // 将 FormData 拆解为 File[] 以匹配 uploadImages 接口
-    const files: File[] = []
-    previewImages.value.forEach(image => files.push(image.file))
     const result = await uploadImages(files, {
       tags: selectedTags.value,
-      // albumId: value.value ? value.value.toString() : undefined, // 移除旧逻辑
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       description: textarea.value.trim()
     })
 
@@ -1002,6 +1116,43 @@ defineExpose({
       }
     }
   }
+
+  .tag-badge {
+      position: absolute;
+      top: 0.5rem;
+      left: 0.5rem;
+      z-index: 10;
+  }
 }
 
+.image-settings-content {
+    .current-image-preview {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    img {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    }
+
+    .current-image-tags {
+    .section-title {
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: $gray-700;
+    }
+    .tags-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        min-height: 32px;
+    }
+    .tag-input {
+        width: 100%;
+    }
+    }
+}
 </style>

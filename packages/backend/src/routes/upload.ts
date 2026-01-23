@@ -276,6 +276,25 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                 }
             }
             
+            // 解析metadata，获取针对特定文件的标签
+            let fileSpecificTags: string[] = [];
+            if (formData.metadata) {
+                try {
+                    const metadata = typeof formData.metadata === 'string' 
+                        ? JSON.parse(formData.metadata) 
+                        : formData.metadata;
+                        
+                    if (metadata[fileData.filename] && Array.isArray(metadata[fileData.filename].tags)) {
+                        fileSpecificTags = metadata[fileData.filename].tags;
+                    }
+                } catch (e) {
+                    console.error('解析metadata失败:', e);
+                }
+            }
+            
+            // 合并全局标签和特定标签，并去重
+            const finalTags = [...new Set([...tagsArray, ...fileSpecificTags])];
+            
             // 保存图片
             const image = await prisma.image.create({
                 data: {
@@ -285,16 +304,16 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     bucketName: bucketName,
                     fileSize: fileBuffer.length,
                     mimeType: fileData.mimetype,
-                    tags: tagsArray,
+                    tags: finalTags,
                     description: formData.description ? String(formData.description) : null
                 }
             })
             
             // 处理标签关联和计数
-            if (tagsArray.length > 0) {
+            if (finalTags.length > 0) {
                 // 获取所有标签记录，不存在则创建
                 const tagRecords = await Promise.all(
-                    tagsArray.map(async (tagName: string) => {
+                    finalTags.map(async (tagName: string) => {
                         // 查找或创建标签
                         return await prisma.tag.upsert({
                             where: { name: tagName },
@@ -557,6 +576,25 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                         }
                     }
                     
+                    // 解析metadata，获取针对特定文件的标签
+                    let fileSpecificTags: string[] = [];
+                    if (formData.metadata) {
+                        try {
+                            const metadata = typeof formData.metadata === 'string' 
+                                ? JSON.parse(formData.metadata) 
+                                : formData.metadata;
+                                
+                            if (metadata[file.filename] && Array.isArray(metadata[file.filename].tags)) {
+                                fileSpecificTags = metadata[file.filename].tags;
+                            }
+                        } catch (e) {
+                            console.error('解析metadata失败:', e);
+                        }
+                    }
+                    
+                    // 合并全局标签和特定标签，并去重
+                    const finalTags = [...new Set([...tagsArray, ...fileSpecificTags])];
+                    
                     const image = await prisma.image.create({
                         data: {
                             filename: file.filename,
@@ -565,17 +603,17 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                             bucketName,
                             fileSize: fileBuffer.length,
                             mimeType: file.mimetype,
-                            tags: tagsArray,
+                            tags: finalTags,
                             description: formData.description ? String(formData.description) : null
                         }
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)
                     
                     // 处理标签关联和计数
-                    if (tagsArray.length > 0) {
+                    if (finalTags.length > 0) {
                         // 获取所有标签记录，不存在则创建
                         const tagRecords = await Promise.all(
-                            tagsArray.map(async (tagName: string) => {
+                            finalTags.map(async (tagName: string) => {
                                 // 查找或创建标签
                                 return await prisma.tag.upsert({
                                     where: { name: tagName },
