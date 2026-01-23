@@ -19,7 +19,7 @@
   "devDependencies": {
     "concurrently": "^8.2.0"
   },
-  "keywords": ["vue", "fastify", "ollama", "pgvector", "ai"],
+  "keywords": ["vue", "fastify", "pgvector", "ai"],
   "author": "Your Name",
   "license": "MIT"
 }

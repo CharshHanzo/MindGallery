@@ -137,8 +137,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
     fastify.get('/api/health/detailed', async () => {
         const checks = {
             database: { status: 'unknown', message: '' },
-            minio: { status: 'unknown', message: '' },
-            ollama: { status: 'unknown', message: '' }
+            minio: { status: 'unknown', message: '' }
         }
 
         // 检查数据库连接
@@ -160,18 +159,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             }
         } else {
             checks.minio = { status: 'skipped', message: 'Using local storage' }
-        }
-
-        // 检查Ollama连接
-        try {
-            const response = await fetch(`${config.ollama.url}/api/tags`)
-            if (response.ok) {
-                checks.ollama = { status: 'ok', message: 'Ollama connection successful' }
-            } else {
-                checks.ollama = { status: 'error', message: `Ollama API returned ${response.status}` }
-            }
-        } catch (error) {
-            checks.ollama = { status: 'error', message: `Ollama connection failed: ${error}` }
         }
 
         // 计算整体状态

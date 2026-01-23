@@ -7,11 +7,6 @@ export interface DatabaseConfig {
   password?: string | undefined
 }
 
-export interface OllamaConfig {
-  url: string
-  model: string
-}
-
 export interface MinioConfig {
   endpoint: string
   port: number
@@ -41,7 +36,6 @@ export interface FrontendConfig {
 export interface AppConfig {
   server: ServerConfig
   database: DatabaseConfig
-  ollama: OllamaConfig
   storage: StorageConfig
   frontend: FrontendConfig
 }

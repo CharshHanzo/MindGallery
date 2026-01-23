@@ -87,7 +87,6 @@ async function setup() {
     console.log(`🚀 服务器运行在 http://localhost:${config.server.port}`)
     console.log(`📁 存储类型: ${config.storage.type}`)
     console.log(`🗄️  数据库: ${config.database.host}:${config.database.port}`)
-    console.log(`🤖 AI服务: ${config.ollama.url}`)
   } catch (err) {
     console.error('启动失败:', err)
     process.exit(1)

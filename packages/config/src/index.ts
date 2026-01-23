@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 import path from 'path'
-import type { AppConfig, DatabaseConfig, OllamaConfig, StorageConfig, ServerConfig, FrontendConfig } from './types.js'
+import type { AppConfig, DatabaseConfig, StorageConfig, ServerConfig, FrontendConfig } from './types.js'
 
 // 加载环境变量
 dotenv.config({
@@ -46,14 +46,6 @@ export function getDatabaseConfig(): DatabaseConfig {
   return parseDatabaseUrl(url)
 }
 
-// 获取AI服务配置
-export function getOllamaConfig(): OllamaConfig {
-  return {
-    url: process.env.OLLAMA_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'moondream:latest'
-  }
-}
-
 // 获取存储配置
 export function getStorageConfig(): StorageConfig {
   const storageType = process.env.STORAGE_TYPE || 'minio'
@@ -89,7 +81,6 @@ export function getConfig(): AppConfig {
   return {
     server: getServerConfig(),
     database: getDatabaseConfig(),
-    ollama: getOllamaConfig(),
     storage: getStorageConfig(),
     frontend: getFrontendConfig()
   }
@@ -105,10 +96,6 @@ export function validateConfig(config: AppConfig): { isValid: boolean; errors: s
 
   if (!config.database.url) {
     errors.push('数据库连接URL不能为空')
-  }
-
-  if (!config.ollama.url) {
-    errors.push('AI服务URL不能为空')
   }
 
   if (config.storage.type === 'minio' && !config.storage.minio) {
