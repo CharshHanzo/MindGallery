@@ -810,37 +810,22 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     console.log(`✅ Text vector generated, length: ${queryVector?.length}`)
                     
                     if (queryVector && queryVector.length > 0) {
-                         // 获取所有带向量的图片
-                         const allImages = await prisma.image.findMany({
-                             where: { 
-                                 NOT: { vector: { equals: [] } } 
-                             },
-                             select: { id: true, vector: true }
-                         })
+                         // Use pgvector for efficient similarity search
+                         const vectorStr = `[${queryVector.join(',')}]`
                          
-                         if (allImages.length > 0) {
-                             // 计算相似度
-                             const scored = allImages.map(img => {
-                                 let score = 0
-                                 // 简单点积（假设向量已归一化）
-                                 const vec = img.vector as number[]
-                                 if (vec && vec.length === queryVector.length) {
-                                     for(let i=0; i<queryVector.length; i++) {
-                                         const v = vec[i]
-                                         if (v !== undefined) {
-                                            score += v * queryVector[i]!
-                                         }
-                                     }
-                                 }
-                                 return { id: img.id, score }
-                             })
-                             .filter(item => item.score > 0.2) // 相似度阈值
-                             .sort((a, b) => b.score - a.score)
-                             
-                             if (scored.length > 0) {
-                                 sortedIds = scored.map(i => i.id)
-                                 console.log(`✅ Vector search found ${sortedIds.length} matches`)
-                             }
+                         // Calculate cosine similarity (1 - cosine distance)
+                         // Note: Requires pgvector extension and casting float array to vector
+                         const matches = await prisma.$queryRaw<Array<{ id: string, score: number }>>`
+                            SELECT id, 1 - ("vector"::vector <=> ${vectorStr}::vector) as score
+                            FROM "Image"
+                            WHERE "vector" IS NOT NULL
+                            AND (1 - ("vector"::vector <=> ${vectorStr}::vector)) > 0.2
+                            ORDER BY score DESC
+                         `
+                         
+                         if (matches.length > 0) {
+                             sortedIds = matches.map(item => item.id)
+                             console.log(`✅ Vector search found ${sortedIds.length} matches via pgvector`)
                          }
                     }
                 } catch (e) {
