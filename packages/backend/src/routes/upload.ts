@@ -72,32 +72,20 @@ export async function uploadRoutes(fastify: FastifyInstance) {
             if (isMinio && config.storage.minio) {
                 const bucket = image.bucketName || config.storage.minio.bucket;
                 let objectKey = image.objectKey;
-                
                 if (type === 'thumbnail') {
-                    const fileExt = path.extname(objectKey);
-                    objectKey = `${objectKey.replace(fileExt, '')}_thumbnail${fileExt}`;
+                    const ext = path.extname(objectKey);
+                    const thumbKey = `${objectKey.replace(ext, '')}_thumbnail${ext}`;
+                    try {
+                        await minioClient.statObject(bucket, thumbKey);
+                        objectKey = thumbKey;
+                    } catch {}
                 }
-                
                 try {
                     const dataStream = await minioClient.getObject(bucket, objectKey);
-                    
-                    // 设置正确的 Content-Type
                     res.header('Content-Type', image.mimeType);
-                    res.header('Cache-Control', 'public, max-age=31536000'); // 缓存一年
-                    
+                    res.header('Cache-Control', 'public, max-age=31536000');
                     return res.send(dataStream);
-                } catch (minioError) {
-                    console.error(`Error fetching from MinIO: ${minioError}`);
-                    // 如果获取缩略图失败，尝试获取原图（降级策略）
-                    if (type === 'thumbnail') {
-                        try {
-                             const dataStream = await minioClient.getObject(bucket, image.objectKey);
-                             res.header('Content-Type', image.mimeType);
-                             return res.send(dataStream);
-                        } catch (retryError) {
-                             return res.code(404).send({ error: 'File not found in storage' });
-                        }
-                    }
+                } catch {
                     return res.code(404).send({ error: 'File not found in storage' });
                 }
             } else {
@@ -373,6 +361,12 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     vector: aiVector
                 }
             })
+            if (aiVector && aiVector.length > 0) {
+                try {
+                    const vecLiteral = '[' + aiVector.map(v => Number.isFinite(v) ? Number(v).toFixed(6) : '0').join(',') + ']'
+                    await prisma.$executeRawUnsafe(`UPDATE "Image" SET "embedding" = '${vecLiteral}' WHERE "id" = '${image.id}'`)
+                } catch {}
+            }
             
             // 处理标签关联和计数
             if (finalTags.length > 0) {
@@ -686,6 +680,13 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     })
                     console.log(`✅ 数据库保存完成, 图片ID: ${image.id}`)
                     
+                    if (aiVector && aiVector.length > 0) {
+                        try {
+                            const vecLiteral = '[' + aiVector.map(v => Number.isFinite(v) ? Number(v).toFixed(6) : '0').join(',') + ']'
+                            await prisma.$executeRawUnsafe(`UPDATE "Image" SET "embedding" = '${vecLiteral}' WHERE "id" = '${image.id}'`)
+                        } catch {}
+                    }
+                    
                     // 处理标签关联和计数
                     if (finalTags.length > 0) {
                         // 获取所有标签记录，不存在则创建
@@ -816,10 +817,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                          // Calculate cosine similarity (1 - cosine distance)
                          // Note: Requires pgvector extension and casting float array to vector
                          const matches = await prisma.$queryRaw<Array<{ id: string, score: number }>>`
-                            SELECT id, 1 - ("vector"::vector <=> ${vectorStr}::vector) as score
+                            SELECT id, 1 - ("embedding" <#> ${vectorStr}::vector) as score
                             FROM "Image"
-                            WHERE "vector" IS NOT NULL
-                            AND (1 - ("vector"::vector <=> ${vectorStr}::vector)) > 0.2
+                            WHERE "embedding" IS NOT NULL
+                            AND (1 - ("embedding" <#> ${vectorStr}::vector)) > 0.2
                             ORDER BY score DESC
                          `
                          
