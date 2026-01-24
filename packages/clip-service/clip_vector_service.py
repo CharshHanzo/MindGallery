@@ -1,12 +1,19 @@
+import os
 import torch
 import clip
 from PIL import Image
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any
 import io
 import uvicorn
 import numpy as np
+
+# Disable HuggingFace Symlink Warning on Windows (Optional, as we removed transformers)
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+# Set CLIP Cache Directory to Project Local Directory
+os.environ['CLIP_CACHE'] = os.path.abspath(os.path.join(os.path.dirname(__file__), 'models_cache', 'clip'))
 
 app = FastAPI(title="CLIP Vector Service")
 
@@ -34,7 +41,11 @@ class VectorResponse(BaseModel):
 @app.get("/health")
 async def health_check():
     status = "ok" if model is not None else "error"
-    return {"status": status, "device": device, "model": MODEL_NAME}
+    return {
+        "status": status, 
+        "device": device, 
+        "model": MODEL_NAME
+    }
 
 @app.post("/encode-image", response_model=VectorResponse)
 async def encode_image(file: UploadFile = File(...)):
@@ -44,12 +55,11 @@ async def encode_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        image_input = preprocess(image).unsqueeze(0).to(device)
         
+        # CLIP Encoding
+        image_input = preprocess(image).unsqueeze(0).to(device)
         with torch.no_grad():
             image_features = model.encode_image(image_input)
-            
-        # Normalize
         image_features /= image_features.norm(dim=-1, keepdim=True)
         vector = image_features.cpu().numpy().tolist()[0]
         
@@ -148,4 +158,4 @@ async def batch_encode_images(files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=5001)
+    uvicorn.run(app, host="127.0.0.1", port=5001) 
