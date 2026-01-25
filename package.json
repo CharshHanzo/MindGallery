@@ -8,9 +8,11 @@
   ],
   "scripts": {
     "dev": "concurrently -n \"Docker,前端,后端,AI服务\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:clip\"",
+    "dev:desktop": "concurrently -n \"Docker,前端,后端,AI服务,Electron\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold,bgYellow.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:clip\" \"npm run dev:electron\"",
     "dev:frontend": "cd packages/frontend && npm run dev",
     "dev:backend": "cd packages/backend && npm run dev",
     "dev:clip": "cd packages/clip-service && .\\venv\\Scripts\\python.exe clip_vector_service.py",
+    "dev:electron": "npm run dev -w packages/desktop-electron",
     "build": "npm run build --workspaces",
     "install:all": "npm install",
     "lint": "npm run lint --workspaces",

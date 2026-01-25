@@ -37,6 +37,7 @@ export default defineConfig({
   },
   server: {
     port: 5175,
+    strictPort: true, // Fail if port is in use instead of switching
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3000',

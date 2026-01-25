@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
-    "@mindgallery/config": "workspace:*",
+    "@mindgallery/config": "^1.0.0",
     "axios": "^1.13.2",
     "element-plus": "^2.13.1",
     "pinia": "^3.0.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0",
-    "@mindgallery/shared": "workspace:*"
+    "@mindgallery/shared": "^1.0.0"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.0",

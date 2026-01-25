@@ -1,0 +1,19 @@
+{
+  "name": "@mindgallery/desktop-electron",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "description": "Electron main process for MindGallery",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "watch": "tsc -w",
+    "start": "electron .",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "electron": "^34.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  }
+}
