@@ -33,6 +33,11 @@ const router = createRouter({
       path: '/upload',
       name: 'upload',
       component: () => import('../views/UploadImageView.vue'),
+    },
+    {
+      path: '/test-directory-picker',
+      name: 'test-directory-picker',
+      component: () => import('../views/TestDirectoryPicker.vue'),
     }
   ],
 })

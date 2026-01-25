@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
     SELECT_DIRECTORY: 'fs:select-directory',
     READ_DIRECTORY: 'fs:read-directory',
     GET_FILE_INFO: 'fs:get-file-info',
+    READ_FILE_BUFFER: 'fs:read-file-buffer',
     ON_SCAN_PROGRESS: 'fs:on-scan-progress',
   },
   APP: {
@@ -62,6 +63,7 @@ export interface ElectronAPI {
   selectDirectory: () => Promise<string | null>;
   readDirectory: (path: string) => Promise<FileInfo[]>;
   getFileInfo: (path: string) => Promise<FileInfo>;
+  readFileBuffer: (path: string) => Promise<Uint8Array>;
   onScanProgress: (callback: ScanProgressCallback) => () => void;
 
   // App Info

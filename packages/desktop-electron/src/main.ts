@@ -121,7 +121,8 @@ const createWindow = () => {
 app.whenReady().then(() => {
   // 1. Correct IPC Registration Timing
   console.log('App ready, registering IPC handlers...');
-  initializeIpc(mainWindow);
+  // Pass a getter to ensure handlers always access the current mainWindow instance
+  initializeIpc(() => mainWindow);
   
   console.log('IPC registered, creating window...');
   createWindow();

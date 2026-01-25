@@ -147,15 +147,18 @@ const validateAndSanitizePath = (targetPath: string): string => {
   return normalizedPath;
 };
 
-export const registerHandlers = (mainWindow: BrowserWindow | null) => {
+export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
   // --- File System Handlers ---
   
   ipcMain.handle(IPC_CHANNELS.FS.SELECT_DIRECTORY, async () => {
     return handleIpc(async () => {
+      const mainWindow = getMainWindow();
       if (!mainWindow) throw new Error('Main window not available');
       const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory']
       });
+      // Return the path string directly to match IpcResponse<string | null>
+      // handleIpc will wrap this in { success: true, data: ... }
       return result.canceled ? null : result.filePaths[0];
     });
   });
@@ -202,6 +205,7 @@ export const registerHandlers = (mainWindow: BrowserWindow | null) => {
 
         // Progress feedback
         processed++;
+        const mainWindow = getMainWindow();
         if (mainWindow && processed % 10 === 0) {
            mainWindow.webContents.send(IPC_CHANNELS.FS.ON_SCAN_PROGRESS, {
              processed,
@@ -226,6 +230,15 @@ export const registerHandlers = (mainWindow: BrowserWindow | null) => {
          mtime: stats.mtime,
          isDirectory: stats.isDirectory()
        } as FileInfo;
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.FS.READ_FILE_BUFFER, async (event, rawPath: string) => {
+    return handleIpc(async () => {
+      const filePath = validateAndSanitizePath(rawPath);
+      // Read file as buffer
+      const buffer = await fs.readFile(filePath);
+      return buffer;
     });
   });
 

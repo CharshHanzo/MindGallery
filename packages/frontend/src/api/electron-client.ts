@@ -11,15 +11,36 @@ const ensureElectron = () => {
 export const electronClient: ElectronAPI = {
   // --- File System ---
   selectDirectory: async (): Promise<string | null> => {
-    return ensureElectron().selectDirectory();
+    // The IPC returns IpcResponse<string | null>
+    const res = await ensureElectron().selectDirectory() as unknown as IpcResponse<string | null>;
+    if (res.success) {
+      return res.data || null;
+    }
+    throw new Error(res.error || 'Failed to select directory');
   },
 
   readDirectory: async (path: string): Promise<FileInfo[]> => {
-    return ensureElectron().readDirectory(path);
+    const res = await ensureElectron().readDirectory(path) as unknown as IpcResponse<FileInfo[]>;
+    if (res.success && res.data) {
+      return res.data;
+    }
+    throw new Error(res.error || 'Failed to read directory');
   },
 
   getFileInfo: async (path: string): Promise<FileInfo> => {
-    return ensureElectron().getFileInfo(path);
+    const res = await ensureElectron().getFileInfo(path) as unknown as IpcResponse<FileInfo>;
+    if (res.success && res.data) {
+      return res.data;
+    }
+    throw new Error(res.error || 'Failed to get file info');
+  },
+
+  readFileBuffer: async (path: string): Promise<Uint8Array> => {
+    const res = await ensureElectron().readFileBuffer(path) as unknown as IpcResponse<Uint8Array>;
+    if (res.success && res.data) {
+      return res.data;
+    }
+    throw new Error(res.error || 'Failed to read file buffer');
   },
 
   onScanProgress: (callback: ScanProgressCallback): (() => void) => {

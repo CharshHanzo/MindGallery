@@ -80,6 +80,7 @@ onUnmounted(() => {
         <div class="cover-overlay"></div>
       </div>
       <div class="action-btn" :class="{ 'scrolled': isScrolled }">
+        <el-icon @click="router.push('/test-directory-picker')" title="测试组件"><Folder /></el-icon>
         <el-icon @click="router.push('/setting')"><Setting /></el-icon>
       </div>
       <div class="user-info">

@@ -7,16 +7,16 @@ export const webClient: ElectronAPI = {
   selectDirectory: async (): Promise<string | null> => {
     return new Promise((resolve) => {
       // In web, we can't get a real path, but we can trigger a file input
-      // However, for this specific API contract which expects a string path, 
+      // However, for this specific API contract which expects a string path,
       // we can't fulfill it strictly.
-      
+
       const input = document.createElement('input');
       input.type = 'file';
       input.webkitdirectory = true;
-      
+
       input.onchange = (e: any) => {
         if (e.target.files.length > 0) {
-          // Web security prevents getting full path. 
+          // Web security prevents getting full path.
           // We return a mock path or handle this differently in the UI layer.
           console.warn('Web mode: File selected but full path is hidden by browser security');
           resolve('Web Directory Selection (Mock Path)');
@@ -24,7 +24,7 @@ export const webClient: ElectronAPI = {
           resolve(null);
         }
       };
-      
+
       input.click();
     });
   },
@@ -42,6 +42,11 @@ export const webClient: ElectronAPI = {
       mtime: new Date(),
       isDirectory: false
     };
+  },
+
+  readFileBuffer: async (path: string): Promise<Uint8Array> => {
+    console.warn(`Web mode: Cannot read arbitrary file buffer ${path}`);
+    return new Uint8Array();
   },
 
   onScanProgress: (callback: ScanProgressCallback) => {
@@ -91,7 +96,7 @@ export const webClient: ElectronAPI = {
   sendMessage: (channel: string, data: any) => {
     console.log(`Web mode: sendMessage to ${channel}`, data);
   },
-  
+
   onReceiveMessage: (channel: string, func: (...args: any[]) => void) => {
     console.log(`Web mode: onReceiveMessage registered for ${channel}`);
   }
