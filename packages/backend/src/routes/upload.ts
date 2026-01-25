@@ -1241,12 +1241,15 @@ export async function uploadRoutes(fastify: FastifyInstance) {
                     const fileExt = path.extname(image.objectKey)
                     const thumbnailKey = `${image.objectKey.replace(fileExt, '')}_thumbnail${fileExt}`
                     
-                    if (image.storageType === 'minio' && image.bucketName) {
-                        // 删除MinIO中的文件
-                        await Promise.all([
-                            minioClient.removeObject(image.bucketName, image.objectKey).catch(() => {}),
-                            minioClient.removeObject(image.bucketName, thumbnailKey).catch(() => {})
-                        ])
+                    if (image.storageType === 'minio') {
+                        const bucketName = image.bucketName || (config.storage.minio && config.storage.minio.bucket);
+                        if (bucketName) {
+                            // 删除MinIO中的文件
+                            await Promise.all([
+                                minioClient.removeObject(bucketName, image.objectKey).catch(err => console.error(`Batch: Failed to delete object ${image.objectKey}:`, err)),
+                                minioClient.removeObject(bucketName, thumbnailKey).catch(err => console.error(`Batch: Failed to delete thumbnail ${thumbnailKey}:`, err))
+                            ]);
+                        }
                     } else {
                         // 删除本地文件
                         const uploadDir = path.join(process.cwd(), 'uploads')
