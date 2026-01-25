@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { initializeIpc } from './ipc';
+import { backendManager } from './services/backend-manager';
 
 // Global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
@@ -45,6 +46,9 @@ const createWindow = () => {
       sandbox: false 
     },
   });
+
+  // Register window getter for backend manager
+  backendManager.setMainWindowGetter(() => mainWindow);
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   // Match the port in packages/frontend/vite.config.ts
@@ -118,12 +122,23 @@ const createWindow = () => {
   });
 };
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 1. Correct IPC Registration Timing
   console.log('App ready, registering IPC handlers...');
   // Pass a getter to ensure handlers always access the current mainWindow instance
   initializeIpc(() => mainWindow);
   
+  // 2. Start Backend Service
+  try {
+    await backendManager.start();
+    
+    // Optional: Log initial system info
+    const info = await backendManager.call('system:get-info');
+    console.log('Backend System Info:', info);
+  } catch (err) {
+    console.error('Failed to start backend service:', err);
+  }
+
   console.log('IPC registered, creating window...');
   createWindow();
 
@@ -132,6 +147,10 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on('will-quit', async () => {
+  await backendManager.stop();
 });
 
 app.on('window-all-closed', () => {

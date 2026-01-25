@@ -1,9 +1,9 @@
-import type { 
-  ElectronAPI, 
-  FileInfo, 
-  SystemInfo, 
-  ServiceStatus, 
-  ScanProgressCallback, 
+import type {
+  ElectronAPI,
+  FileInfo,
+  SystemInfo,
+  ServiceStatus,
+  ScanProgressCallback,
   UploadProgressCallback,
   IpcResponse,
   UploadResult,
@@ -68,6 +68,34 @@ export const electronClient: ElectronAPI = {
 
   onUploadProgress: (callback: UploadProgressCallback): (() => void) => {
     return ensureElectron().onUploadProgress(callback);
+  },
+
+  // --- Backend Service ---
+  backend: {
+    start: async () => {
+      const res = await ensureElectron().backend.start() as unknown as IpcResponse<void>;
+      if (!res.success) throw new Error(res.error || 'Failed to start backend');
+    },
+    stop: async () => {
+      const res = await ensureElectron().backend.stop() as unknown as IpcResponse<void>;
+      if (!res.success) throw new Error(res.error || 'Failed to stop backend');
+    },
+    restart: async () => {
+      const res = await ensureElectron().backend.restart() as unknown as IpcResponse<void>;
+      if (!res.success) throw new Error(res.error || 'Failed to restart backend');
+    },
+    getStatus: async () => {
+      const res = await ensureElectron().backend.getStatus() as unknown as IpcResponse<{ isRunning: boolean; pid?: number }>;
+      if (res.success && res.data) return res.data;
+      throw new Error(res.error || 'Failed to get backend status');
+    },
+    call: async (method: string, params?: any) => {
+      const res = await ensureElectron().backend.call(method, params) as unknown as IpcResponse<any>;
+      if (res.success && res.data) return res.data;
+      if (res.success && res.data === undefined) return; // void return
+      throw new Error(res.error || `Failed to call ${method}`);
+    },
+    onEvent: (event: string, callback: (data: any) => void) => ensureElectron().backend.onEvent(event, callback)
   },
 
   // --- App Info ---

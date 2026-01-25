@@ -78,6 +78,21 @@ export const webClient: ElectronAPI = {
     return () => {};
   },
 
+  // --- Backend Service ---
+  backend: {
+    start: async () => { console.warn('Web mode: Backend start not supported'); },
+    stop: async () => { console.warn('Web mode: Backend stop not supported'); },
+    restart: async () => { console.warn('Web mode: Backend restart not supported'); },
+    getStatus: async () => ({ isRunning: false }),
+    call: async (method: string, params?: any) => {
+      console.warn(`Web mode: Backend call ${method} not supported`);
+      throw new Error('Backend not available in Web mode');
+    },
+    onEvent: (event: string, callback: (data: any) => void) => {
+      return () => {};
+    }
+  },
+
   // --- App Info ---
   getAppVersion: async (): Promise<string> => {
     return '1.0.0 (Web)';

@@ -1,0 +1,29 @@
+{
+  "name": "@mindgallery/desktop-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "fs-extra": "^11.1.1",
+    "onnxruntime-node": "^1.18.0",
+    "sharp": "^0.33.2",
+    "sqlite-vss": "^0.1.2",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.19",
+    "@types/uuid": "^9.0.8",
+    "electron-rebuild": "^3.2.9",
+    "typescript": "^5.3.3"
+  }
+}

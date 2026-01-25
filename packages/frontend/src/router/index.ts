@@ -38,6 +38,11 @@ const router = createRouter({
       path: '/test-directory-picker',
       name: 'test-directory-picker',
       component: () => import('../views/TestDirectoryPicker.vue'),
+    },
+    {
+      path: '/test-backend',
+      name: 'test-backend',
+      component: () => import('../views/TestBackend.vue'),
     }
   ],
 })

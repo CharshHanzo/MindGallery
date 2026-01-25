@@ -15,5 +15,6 @@ export type {
   UploadProgressCallback,
   IpcResponse,
   UploadResult,
-  BatchUploadResult
+  BatchUploadResult,
+  BackendIpcAPI
 } from '@mindgallery/shared/dist/electron-api';

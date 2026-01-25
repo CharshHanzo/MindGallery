@@ -33,6 +33,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     };
   },
 
+  // --- Backend Service ---
+  backend: {
+    start: () => {
+      console.log('[Preload] Invoking backend:start');
+      return ipcRenderer.invoke(IPC_CHANNELS.BACKEND.START);
+    },
+    stop: () => ipcRenderer.invoke(IPC_CHANNELS.BACKEND.STOP),
+    restart: () => ipcRenderer.invoke(IPC_CHANNELS.BACKEND.RESTART),
+    getStatus: () => {
+      console.log('[Preload] Invoking backend:status');
+      return ipcRenderer.invoke(IPC_CHANNELS.BACKEND.STATUS);
+    },
+    call: (method: string, params?: any) => {
+      console.log(`[Preload] Invoking backend:call ${method}`, params);
+      return ipcRenderer.invoke(IPC_CHANNELS.BACKEND.CALL, method, params);
+    },
+    onEvent: (event: string, callback: (data: any) => void) => {
+      const subscription = (e: any, data: any) => callback(data);
+      ipcRenderer.on(event, subscription);
+      return () => {
+        ipcRenderer.removeListener(event, subscription);
+      };
+    }
+  },
+
   // --- App Info ---
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP.GET_VERSION),
   

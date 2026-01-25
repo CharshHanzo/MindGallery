@@ -143,7 +143,12 @@ const validateAndSanitizePath = (targetPath: string): string => {
   return normalizedPath;
 };
 
+import { setupBackendIpcHandlers } from './backend-handlers';
+
 export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
+  // Register Backend Handlers
+  setupBackendIpcHandlers();
+
   // --- File System Handlers ---
   
   ipcMain.handle(IPC_CHANNELS.FS.SELECT_DIRECTORY, async () => {
