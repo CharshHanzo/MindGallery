@@ -1,0 +1,6 @@
+[
+  {
+    "type": "sqlite",
+    "path": "e:\\MindGallery\\mindgallery-monorepo\\packages\\desktop-electron\\data\\mindgallery.db"
+  }
+]

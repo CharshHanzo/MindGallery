@@ -32,6 +32,10 @@ temp/
 # 数据库
 *.db
 *.sqlite
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
 
 # Ollama
 .ollama/

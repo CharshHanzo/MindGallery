@@ -72,12 +72,21 @@ export class BackendServiceManager extends EventEmitter {
 
     console.log(`[BackendManager] Starting backend service from: ${this.backendPath}`);
     
+    // Determine App Data Path
+    // In dev, use project root's 'data' folder to avoid polluting system AppData
+    const isDev = !app.isPackaged;
+    const appDataPath = isDev 
+      ? path.resolve(process.cwd(), 'data') 
+      : app.getPath('userData');
+
+    console.log(`[BackendManager] Using Data Path: ${appDataPath}`);
+
     return new Promise((resolve, reject) => {
       try {
         this.process = fork(this.backendPath, [], {
           env: {
             ...process.env,
-            APP_DATA_PATH: app.getPath('userData'),
+            APP_DATA_PATH: appDataPath,
             ELECTRON_VERSION: process.versions.electron
           },
           stdio: ['pipe', 'pipe', 'pipe', 'ipc']
