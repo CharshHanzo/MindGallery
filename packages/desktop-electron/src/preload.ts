@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC_CHANNELS, ScanProgressCallback } from './ipc/types';
+import { IPC_CHANNELS, ScanProgressCallback, UploadProgressCallback } from './ipc/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // --- File System ---
@@ -17,6 +17,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Return unsubscribe function
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.FS.ON_SCAN_PROGRESS, subscription);
+    };
+  },
+
+  // --- Upload ---
+  uploadFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FS.UPLOAD_FILE, filePath),
+  
+  uploadFiles: (filePaths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FS.UPLOAD_FILES, filePaths),
+  
+  onUploadProgress: (callback: UploadProgressCallback) => {
+    const subscription = (event: any, progress: any) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.FS.ON_UPLOAD_PROGRESS, subscription);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.FS.ON_UPLOAD_PROGRESS, subscription);
     };
   },
 

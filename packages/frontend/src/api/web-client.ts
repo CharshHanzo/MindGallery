@@ -1,4 +1,14 @@
-import type { ElectronAPI, FileInfo, SystemInfo, ServiceStatus, IpcResponse, ScanProgressCallback } from '@mindgallery/shared/dist/electron-api';
+import type { 
+  ElectronAPI, 
+  FileInfo, 
+  SystemInfo, 
+  ServiceStatus, 
+  IpcResponse, 
+  ScanProgressCallback,
+  UploadProgressCallback,
+  UploadResult,
+  BatchUploadResult
+} from '@mindgallery/shared/dist/electron-api';
 
 // Web implementation of the ElectronAPI interface
 // This provides graceful fallbacks for when running in a browser
@@ -7,16 +17,16 @@ export const webClient: ElectronAPI = {
   selectDirectory: async (): Promise<string | null> => {
     return new Promise((resolve) => {
       // In web, we can't get a real path, but we can trigger a file input
-      // However, for this specific API contract which expects a string path,
+      // However, for this specific API contract which expects a string path, 
       // we can't fulfill it strictly.
-
+      
       const input = document.createElement('input');
       input.type = 'file';
       input.webkitdirectory = true;
-
+      
       input.onchange = (e: any) => {
         if (e.target.files.length > 0) {
-          // Web security prevents getting full path.
+          // Web security prevents getting full path. 
           // We return a mock path or handle this differently in the UI layer.
           console.warn('Web mode: File selected but full path is hidden by browser security');
           resolve('Web Directory Selection (Mock Path)');
@@ -24,7 +34,7 @@ export const webClient: ElectronAPI = {
           resolve(null);
         }
       };
-
+      
       input.click();
     });
   },
@@ -52,6 +62,20 @@ export const webClient: ElectronAPI = {
   onScanProgress: (callback: ScanProgressCallback) => {
     console.log('Web mode: Scan progress listener registered');
     return () => {}; // No-op cleanup
+  },
+
+  // --- Upload ---
+  uploadFile: async (filePath: string): Promise<IpcResponse<UploadResult>> => {
+    return { success: false, error: 'Direct upload not supported in Web mode' };
+  },
+
+  uploadFiles: async (filePaths: string[]): Promise<IpcResponse<BatchUploadResult>> => {
+    return { success: false, error: 'Direct upload not supported in Web mode' };
+  },
+
+  onUploadProgress: (callback: UploadProgressCallback) => {
+    console.log('Web mode: Upload progress listener registered');
+    return () => {};
   },
 
   // --- App Info ---

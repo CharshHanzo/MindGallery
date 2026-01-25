@@ -45,6 +45,9 @@ export const IPC_CHANNELS = {
     GET_FILE_INFO: 'fs:get-file-info',
     READ_FILE_BUFFER: 'fs:read-file-buffer',
     ON_SCAN_PROGRESS: 'fs:on-scan-progress',
+    UPLOAD_FILE: 'upload:file',
+    UPLOAD_FILES: 'upload:files',
+    ON_UPLOAD_PROGRESS: 'upload:on-progress',
   },
   APP: {
     GET_VERSION: 'app:get-version',
@@ -58,6 +61,21 @@ export const IPC_CHANNELS = {
   }
 } as const;
 
+export type UploadProgressCallback = (progress: { processed: number; total: number }) => void;
+
+export interface UploadResult {
+  success: boolean;
+  filePath: string;
+  error?: string;
+}
+
+export interface BatchUploadResult {
+  success: boolean;
+  processed: number;
+  total: number;
+  results: UploadResult[];
+}
+
 export interface ElectronAPI {
   // File System
   selectDirectory: () => Promise<string | null>;
@@ -65,6 +83,11 @@ export interface ElectronAPI {
   getFileInfo: (path: string) => Promise<FileInfo>;
   readFileBuffer: (path: string) => Promise<Uint8Array>;
   onScanProgress: (callback: ScanProgressCallback) => () => void;
+
+  // Upload
+  uploadFile: (filePath: string) => Promise<IpcResponse<UploadResult>>;
+  uploadFiles: (filePaths: string[]) => Promise<IpcResponse<BatchUploadResult>>;
+  onUploadProgress: (callback: UploadProgressCallback) => () => void;
 
   // App Info
   getAppVersion: () => Promise<string>;

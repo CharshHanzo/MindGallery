@@ -27,68 +27,59 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import DirectoryPicker from '@/components/adapters/DirectoryPicker.vue';
 import { universalApi } from '@/api';
-import { uploadImages } from '@/api/modules/image';
+import { useEnvironment } from '@/composables/useEnvironment';
 
+const { isElectron } = useEnvironment();
 const logs = ref<{time: string, msg: string}[]>([]);
+let uploadCleanup: (() => void) | null = null;
 
 const addLog = (msg: string) => {
   const time = new Date().toLocaleTimeString();
   logs.value.unshift({ time, msg });
 };
 
-// Helper to determine mime type
-const getMimeType = (filename: string) => {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'png': 'image/png',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
-    'bmp': 'image/bmp',
-    'svg': 'image/svg+xml'
-  };
-  return map[ext || ''] || 'application/octet-stream';
-};
-
 const handleSelected = async (payload: { path: string; fileCount: number }) => {
   addLog(`✅ Selected: ${payload.path} (${payload.fileCount} files)`);
 
-  // Start Import Process
-  addLog('🚀 Starting import process...');
+  if (!isElectron) {
+    addLog('⚠️ Web mode: Direct folder upload not supported. Using legacy file input.');
+    return;
+  }
+
+  // Start Direct Import Process (Electron Side)
+  addLog('🚀 Starting direct backend upload via Electron...');
+
   try {
-    // 1. Get list of files again (or modify DirectoryPicker to pass them, but let's re-fetch for safety/simplicity)
+    // 1. Get list of files
     const filesInfo = await universalApi.readDirectory(payload.path);
+    const filePaths = filesInfo.map(f => f.path);
 
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const [index, fileInfo] of filesInfo.entries()) {
-      try {
-        addLog(`[${index + 1}/${filesInfo.length}] Reading: ${fileInfo.name}`);
-
-        // 2. Read Buffer
-        const buffer = await universalApi.readFileBuffer(fileInfo.path);
-
-        // 3. Create File object
-        const file = new File([buffer as unknown as BlobPart], fileInfo.name, { type: getMimeType(fileInfo.name) });
-        
-        // 4. Upload
-        addLog(`⬆️ Uploading: ${fileInfo.name} (${(file.size / 1024).toFixed(1)} KB)`);
-        await uploadImages([file]);
-
-        successCount++;
-        addLog(`✅ Uploaded: ${fileInfo.name}`);
-      } catch (err: any) {
-        failCount++;
-        addLog(`❌ Failed to upload ${fileInfo.name}: ${err.message}`);
+    // 2. Setup progress listener
+    if (uploadCleanup) uploadCleanup();
+    uploadCleanup = universalApi.onUploadProgress((progress) => {
+      if (progress.processed % 5 === 0 || progress.processed === progress.total) {
+        addLog(`⏳ Upload Progress: ${progress.processed} / ${progress.total}`);
       }
-    }
+    });
 
-    addLog(`🎉 Import Complete! Success: ${successCount}, Failed: ${failCount}`);
+    // 3. Trigger Batch Upload
+    const result = await universalApi.uploadFiles(filePaths);
+
+    if (result.success && result.data) {
+      addLog(`🎉 Batch Upload Complete! Processed: ${result.data.processed}, Success: ${result.data.results.filter(r => r.success).length}`);
+
+      // Log failures if any
+      const failures = result.data.results.filter(r => !r.success);
+      if (failures.length > 0) {
+        addLog(`⚠️ ${failures.length} files failed to upload.`);
+        failures.forEach(f => addLog(`❌ Failed: ${f.filePath} - ${f.error}`));
+      }
+    } else {
+      addLog(`❌ Batch Upload Failed: ${result.error}`);
+    }
 
   } catch (err: any) {
     addLog(`❌ Import Process Failed: ${err.message}`);
@@ -100,9 +91,8 @@ const handleStarted = (payload: { path: string }) => {
 };
 
 const handleProgress = (payload: { processed: number; total: number }) => {
-  // Throttle logs slightly
   if (payload.processed % 10 === 0 || payload.processed === payload.total) {
-    addLog(`⏳ Progress: ${payload.processed} / ${payload.total}`);
+    addLog(`⏳ Scan Progress: ${payload.processed} / ${payload.total}`);
   }
 };
 
@@ -115,4 +105,8 @@ const handleError = (payload: { message: string; error?: any }) => {
   }
   addLog(`❌ Error: ${payload.message} ${detail}`);
 };
+
+onUnmounted(() => {
+  if (uploadCleanup) uploadCleanup();
+});
 </script>

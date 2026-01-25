@@ -6,11 +6,14 @@ declare global {
   }
 }
 
-export type { 
-  ElectronAPI, 
-  FileInfo, 
-  SystemInfo, 
-  ServiceStatus, 
-  ScanProgressCallback, 
-  IpcResponse 
+export type {
+  ElectronAPI,
+  FileInfo,
+  SystemInfo,
+  ServiceStatus,
+  ScanProgressCallback,
+  UploadProgressCallback,
+  IpcResponse,
+  UploadResult,
+  BatchUploadResult
 } from '@mindgallery/shared/dist/electron-api';

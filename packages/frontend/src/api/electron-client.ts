@@ -1,4 +1,14 @@
-import type { ElectronAPI, FileInfo, SystemInfo, ServiceStatus, ScanProgressCallback, IpcResponse } from '../types/electron';
+import type { 
+  ElectronAPI, 
+  FileInfo, 
+  SystemInfo, 
+  ServiceStatus, 
+  ScanProgressCallback, 
+  UploadProgressCallback,
+  IpcResponse,
+  UploadResult,
+  BatchUploadResult
+} from '../types/electron';
 
 // Safe wrapper that throws if called in Web environment
 const ensureElectron = () => {
@@ -45,6 +55,19 @@ export const electronClient: ElectronAPI = {
 
   onScanProgress: (callback: ScanProgressCallback): (() => void) => {
     return ensureElectron().onScanProgress(callback);
+  },
+
+  // --- Upload ---
+  uploadFile: async (filePath: string): Promise<IpcResponse<UploadResult>> => {
+    return ensureElectron().uploadFile(filePath);
+  },
+
+  uploadFiles: async (filePaths: string[]): Promise<IpcResponse<BatchUploadResult>> => {
+    return ensureElectron().uploadFiles(filePaths);
+  },
+
+  onUploadProgress: (callback: UploadProgressCallback): (() => void) => {
+    return ensureElectron().onUploadProgress(callback);
   },
 
   // --- App Info ---

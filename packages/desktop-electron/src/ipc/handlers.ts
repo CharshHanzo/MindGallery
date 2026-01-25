@@ -5,6 +5,7 @@ import path from 'path';
 import os from 'os';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { IPC_CHANNELS, IpcResponse, FileInfo, SystemInfo, ServiceStatus } from './types';
+import { httpUploader } from '../services/http-uploader';
 
 // Service Manager Class
 class ServiceManager {
@@ -114,8 +115,6 @@ const validateAndSanitizePath = (targetPath: string): string => {
   }
 
   // Prevent directory traversal attacks by checking if it resolves outside root
-  // (In a real app, you might whitelist specific roots like User Data, Pictures, etc.)
-  // For now, we check if the path is accessible and doesn't contain traversal sequences after normalization
   if (normalizedPath.includes('..')) {
     throw new Error('Invalid path: Traversal detected');
   }
@@ -133,13 +132,10 @@ const validateAndSanitizePath = (targetPath: string): string => {
     app.getPath('desktop')
   ];
   
-  // On Windows, drive letters make simple startsWith checks tricky without normalization
-  // We check if the path starts with any of the allowed roots
+  // Check if the path starts with any of the allowed roots
   const isAllowed = allowedRoots.some(root => normalizedPath.toLowerCase().startsWith(root.toLowerCase()));
   
   if (!isAllowed) {
-    // Optional: Allow access to drives directly? Maybe unsafe.
-    // For now, strict whitelist
     console.warn(`Access denied to path: ${normalizedPath}`);
     throw new Error('Access denied: Path not in allowed directories');
   }
@@ -157,18 +153,14 @@ export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
       const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory']
       });
-      // Return the path string directly to match IpcResponse<string | null>
-      // handleIpc will wrap this in { success: true, data: ... }
       return result.canceled ? null : result.filePaths[0];
     });
   });
 
   ipcMain.handle(IPC_CHANNELS.FS.READ_DIRECTORY, async (event, rawPath: string) => {
     return handleIpc(async () => {
-      // 2. Validate Path
       const dirPath = validateAndSanitizePath(rawPath);
 
-      // Check if exists
       try {
         await fs.access(dirPath);
       } catch {
@@ -176,7 +168,6 @@ export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
       }
 
       const files = await fs.readdir(dirPath);
-      // 5. Extended Image Extensions
       const imageExtensions = [
         '.jpg', '.jpeg', '.png', '.gif', '.bmp', 
         '.webp', '.svg', '.heic', '.heif'
@@ -236,9 +227,32 @@ export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
   ipcMain.handle(IPC_CHANNELS.FS.READ_FILE_BUFFER, async (event, rawPath: string) => {
     return handleIpc(async () => {
       const filePath = validateAndSanitizePath(rawPath);
-      // Read file as buffer
       const buffer = await fs.readFile(filePath);
       return buffer;
+    });
+  });
+
+  // --- Upload Handlers ---
+  
+  ipcMain.handle(IPC_CHANNELS.FS.UPLOAD_FILE, async (event, rawPath: string) => {
+    return handleIpc(async () => {
+      const filePath = validateAndSanitizePath(rawPath);
+      return await httpUploader.uploadFile(filePath);
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.FS.UPLOAD_FILES, async (event, rawPaths: string[]) => {
+    return handleIpc(async () => {
+      // Validate all paths first
+      const safePaths = rawPaths.map(p => validateAndSanitizePath(p));
+      
+      const mainWindow = getMainWindow();
+      
+      return await httpUploader.uploadFiles(safePaths, (processed, total) => {
+        if (mainWindow) {
+          mainWindow.webContents.send(IPC_CHANNELS.FS.ON_UPLOAD_PROGRESS, { processed, total });
+        }
+      });
     });
   });
 
