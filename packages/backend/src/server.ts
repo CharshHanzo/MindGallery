@@ -1,5 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+
+console.log('Backend process starting...')
+
 import multipart from '@fastify/multipart'
 import staticPlugin from '@fastify/static'
 import path from 'path'
@@ -93,4 +96,7 @@ async function setup() {
   }
 }
 
-setup()
+setup().catch(err => {
+  console.error('Setup failed:', err)
+  process.exit(1)
+})
