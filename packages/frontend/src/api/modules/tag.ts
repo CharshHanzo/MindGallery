@@ -1,9 +1,17 @@
 // 标签相关API接口
+import { universalApi } from '../unified-client'
+
+// Detect environment
+const isElectron = !!window.electronAPI;
 
 /**
  * 获取标签列表
  */
 export const getTagList = async () => {
+  if (isElectron) {
+    return await universalApi.backend.call('tags:list');
+  }
+
   const response = await fetch('/api/tags')
 
   if (!response.ok) {
@@ -17,6 +25,10 @@ export const getTagList = async () => {
  * 创建新标签
  */
 export const createTag = async (tagName: string) => {
+  if (isElectron) {
+    return await universalApi.backend.call('tags:create', { name: tagName });
+  }
+
   const response = await fetch('/api/tags', {
     method: 'POST',
     headers: {
@@ -36,6 +48,10 @@ export const createTag = async (tagName: string) => {
  * 删除标签
  */
 export const deleteTag = async (tagId: string) => {
+  if (isElectron) {
+    return await universalApi.backend.call('tags:delete', { id: tagId });
+  }
+
   const response = await fetch(`/api/tags/${tagId}`, {
     method: 'DELETE',
   })
@@ -55,6 +71,10 @@ export const deleteTag = async (tagId: string) => {
  * 更新标签
  */
 export const updateTag = async (tagId: string, newName: string) => {
+  if (isElectron) {
+    return await universalApi.backend.call('tags:update', { id: tagId, name: newName });
+  }
+
   const response = await fetch(`/api/tags/${tagId}`, {
     method: 'PUT',
     headers: {

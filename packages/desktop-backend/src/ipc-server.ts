@@ -9,10 +9,11 @@ export class IpcServer {
 
   constructor(dbPath: string) {
     this.db = new SqliteClient(dbPath);
-    this.init();
   }
 
-  private init() {
+  async init() {
+    await this.db.init();
+
     // Listen for messages from parent process (Electron)
     process.on('message', async (message: IpcRequest) => {
       if (!message || !message.id) return;
@@ -52,17 +53,26 @@ export class IpcServer {
         return this.importFolder(params.folderPath);
       
       case 'images:list':
-        return this.db.getImages(params as ListOptions);
+        const listParams = params as ListOptions;
+        const items = this.db.getImages(listParams);
+        const stats = this.db.getStats();
+        return {
+          items,
+          total: stats.totalImages,
+          page: Math.floor((listParams.offset || 0) / (listParams.limit || 50)) + 1,
+          limit: listParams.limit || 50,
+          totalPages: Math.ceil(stats.totalImages / (listParams.limit || 50))
+        };
       
-      case 'images:search':
+      case 'images:get':
         if (params.vector) {
-          return this.db.searchByVector(params.vector, params.limit);
+          return await this.db.searchByVector(params.vector, params.limit);
         }
         // Fallback or text search if implemented
         return [];
 
       case 'images:delete':
-        return this.db.deleteImages(params.imageIds);
+        return await this.db.deleteImages(params.imageIds);
 
       // --- System ---
       case 'system:get-info':
@@ -76,6 +86,32 @@ export class IpcServer {
       // --- AI ---
       case 'ai:analyze-image':
         return vectorService.analyzeImage(params.imagePath);
+
+      // --- Tags ---
+      case 'tags:list':
+        return this.db.getTags();
+      case 'tags:create':
+        return this.db.createTag(params.name);
+      case 'tags:update':
+        return this.db.updateTag(params.id, params.name);
+      case 'tags:delete':
+        return this.db.deleteTag(params.id);
+
+      // --- Albums ---
+      case 'albums:list':
+        return this.db.getAlbums();
+      case 'albums:create':
+        return this.db.createAlbum(params.name, params.description);
+      case 'albums:get':
+        return this.db.getAlbumById(params.id);
+      case 'albums:update':
+        return this.db.updateAlbum(params.id, params.name, params.description);
+      case 'albums:delete':
+        return this.db.deleteAlbum(params.id);
+      case 'albums:add-images':
+        return this.db.addImagesToAlbum(params.albumId, params.imageIds);
+      case 'albums:remove-images':
+        return this.db.removeImagesFromAlbum(params.albumId, params.imageIds);
 
       default:
         throw new Error(`Unknown method: ${method}`);
@@ -118,7 +154,7 @@ export class IpcServer {
         // For now, let's await to ensure DB consistency
         const embedding = await vectorService.generateEmbedding(filePath);
         if (embedding.length > 0) {
-          this.db.addVector(image.id, embedding);
+          await this.db.addVector(image.id, embedding);
         }
 
         imported++;
@@ -146,5 +182,48 @@ export class IpcServer {
       failed,
       errors
     };
+  }
+
+  private async importFiles(filePaths: string[]) {
+    const results: LocalImage[] = [];
+    
+    for (const filePath of filePaths) {
+      try {
+        // Check if exists
+        const existing = this.db.getImageByPath(filePath);
+        if (existing) {
+          results.push(existing);
+          continue;
+        }
+
+        const stats = await fileManager.getFileStats(filePath);
+        const metadata = await imageProcessor.processImage(filePath);
+
+        // Add to DB
+        const image = this.db.addImage({
+          filePath,
+          fileName: filePath.split(/[/\\]/).pop() || '',
+          fileSize: stats.size,
+          width: metadata.width,
+          height: metadata.height,
+          format: metadata.format,
+          metadata: { ...metadata, hash: metadata.hash }
+        });
+
+        // Async: Generate embedding
+        const embedding = await vectorService.generateEmbedding(filePath);
+        if (embedding.length > 0) {
+          await this.db.addVector(image.id, embedding);
+        }
+
+        results.push(image);
+      } catch (e: any) {
+        console.error(`Failed to import file ${filePath}:`, e);
+        // We might want to throw or return partial results. 
+        // For now, let's just skip failed ones or handle error.
+      }
+    }
+
+    return results;
   }
 }

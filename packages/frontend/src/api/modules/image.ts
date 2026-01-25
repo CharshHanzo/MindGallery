@@ -8,11 +8,28 @@ import type {
   BatchOperationResponse,
   UpdateImageRequest
 } from '@mindgallery/shared/src/types/api'
+import { universalApi } from '../unified-client'
+
+// Detect environment
+const isElectron = !!window.electronAPI;
 
 /**
  * 上传单张图片
  */
 export const uploadSingleImage = async (formData: FormData): Promise<UploadImageResponse> => {
+  if (isElectron) {
+    const file = formData.get('files') as File;
+    if (!file || !(file as any).path) {
+      throw new Error('Electron environment requires file path');
+    }
+    const result = await universalApi.backend.call('images:import-files', { 
+      filePaths: [(file as any).path] 
+    });
+    // Adapt response to UploadImageResponse structure if needed
+    // Assuming backend returns LocalImage[] and frontend handles it
+    return result[0] as unknown as UploadImageResponse;
+  }
+
   const response = await fetch('/api/upload', {
     method: 'POST',
     body: formData,
@@ -29,6 +46,18 @@ export const uploadSingleImage = async (formData: FormData): Promise<UploadImage
  * 批量上传图片
  */
 export const uploadMultipleImages = async (formData: FormData): Promise<BatchUploadImageResponse> => {
+  if (isElectron) {
+    const files = formData.getAll('files') as File[];
+    const filePaths = files.map(f => (f as any).path).filter(Boolean);
+    
+    if (filePaths.length === 0) {
+      throw new Error('No valid file paths found for upload');
+    }
+
+    const result = await universalApi.backend.call('images:import-files', { filePaths });
+    return result as unknown as BatchUploadImageResponse;
+  }
+
   const response = await fetch('/api/upload/batch', {
     method: 'POST',
     body: formData,
@@ -52,6 +81,29 @@ export const getImageList = async (params?: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }): Promise<ImagesListResponse> => {
+  if (isElectron) {
+    // Calculate offset from page/limit
+    const limit = params?.limit || 50;
+    const offset = ((params?.page || 1) - 1) * limit;
+    
+    const listParams: any = {
+      limit,
+      offset,
+      sortBy: params?.sortBy,
+      sortOrder: params?.sortOrder
+    };
+
+    // If search is provided, we might want to use search endpoint instead
+    // But currently backend list doesn't support search text.
+    // If it's a vector search, it's different.
+    // Assuming this is basic list for now.
+    
+    const result = await universalApi.backend.call('images:list', listParams);
+    
+    // Backend now returns full pagination info
+    return result as unknown as ImagesListResponse;
+  }
+
   const queryParams = new URLSearchParams()
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.limit) queryParams.append('limit', params.limit.toString())
@@ -73,6 +125,11 @@ export const getImageList = async (params?: {
  * 获取图片详情
  */
 export const getImageDetail = async (imageId: string): Promise<ImageDetailResponse> => {
+  if (isElectron) {
+    const image = await universalApi.backend.call('images:get', { id: imageId });
+    return image as unknown as ImageDetailResponse;
+  }
+
   const response = await fetch(`/api/images/${imageId}`)
 
   if (!response.ok) {
@@ -86,6 +143,11 @@ export const getImageDetail = async (imageId: string): Promise<ImageDetailRespon
  * 删除图片
  */
 export const deleteImage = async (imageId: string): Promise<DeleteImageResponse> => {
+  if (isElectron) {
+    await universalApi.backend.call('images:delete', { imageIds: [imageId] });
+    return { success: true } as unknown as DeleteImageResponse;
+  }
+
   const response = await fetch(`/api/images/${imageId}`, {
     method: 'DELETE',
   })
@@ -101,6 +163,12 @@ export const deleteImage = async (imageId: string): Promise<DeleteImageResponse>
  * 更新图片信息
  */
 export const updateImageInfo = async (imageId: string, data: UpdateImageRequest): Promise<ImageDetailResponse> => {
+  if (isElectron) {
+    // Backend doesn't support update yet
+    console.warn('Update image not implemented in backend yet');
+    return {} as ImageDetailResponse;
+  }
+
   const response = await fetch(`/api/images/${imageId}`, {
     method: 'PUT',
     headers: {

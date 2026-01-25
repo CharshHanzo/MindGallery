@@ -18,6 +18,7 @@ async function main() {
 
     // Start IPC Server (which initializes DB)
     const server = new IpcServer(DB_PATH);
+    await server.init();
 
     console.log(`Backend Service Ready. DB Path: ${DB_PATH}`);
 

@@ -7,10 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n \"Docker,前端,后端,AI服务\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:clip\"",
-    "dev:desktop": "concurrently -n \"Docker,前端,后端,AI服务,Electron\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold,bgYellow.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:clip\" \"npm run dev:electron\"",
-    "dev:frontend": "cd packages/frontend && npm run dev",
-    "dev:backend": "cd packages/backend && npm run dev",
+    "dev": "concurrently -k -n \"FRONTEND,BACKEND,ELECTRON\" -c \"bgBlue.bold,bgGreen.bold,bgYellow.bold\" \"npm run dev:frontend\" \"npm run dev:backend\" \"wait-on tcp:5175 && npm run dev:electron\"",
+    "dev:legacy": "concurrently -n \"Docker,前端,后端,AI服务\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:legacy-backend\" \"npm run dev:clip\"",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "dev:backend": "npm run dev -w packages/desktop-backend",
+    "dev:legacy-backend": "cd packages/backend && npm run dev",
     "dev:clip": "cd packages/clip-service && .\\venv\\Scripts\\python.exe clip_vector_service.py",
     "dev:electron": "npm run dev -w packages/desktop-electron",
     "build": "npm run build --workspaces",
@@ -20,9 +21,15 @@
     "docker:down": "docker-compose down"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.0",
+    "wait-on": "^8.0.5"
   },
-  "keywords": ["vue", "fastify", "pgvector", "ai"],
+  "keywords": [
+    "vue",
+    "fastify",
+    "pgvector",
+    "ai"
+  ],
   "author": "Your Name",
   "license": "MIT"
 }

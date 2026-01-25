@@ -1,28 +1,34 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs-extra';
-import { LocalImage, ListOptions, SearchQuery } from '../types';
+import * as lancedb from '@lancedb/lancedb';
+import { LocalImage, ListOptions } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class SqliteClient {
   private db: Database.Database;
+  private lanceDbPath: string;
+  private lance: lancedb.Connection | null = null;
+  private vectorTable: lancedb.Table | null = null;
 
   constructor(dbPath: string) {
     // Ensure directory exists
     fs.ensureDirSync(path.dirname(dbPath));
     
     this.db = new Database(dbPath);
-    this.initExtensions();
     this.initSchema();
+    this.lanceDbPath = path.join(path.dirname(dbPath), 'vectors');
   }
 
-  private async initExtensions() {
+  async init() {
     try {
-      // Dynamic import for ESM module
-      const sqliteVss = await import('sqlite-vss');
-      sqliteVss.load(this.db);
+      this.lance = await lancedb.connect(this.lanceDbPath);
+      const tableNames = await this.lance.tableNames();
+      if (tableNames.includes('image_vectors')) {
+        this.vectorTable = await this.lance.openTable('image_vectors');
+      }
     } catch (error) {
-      console.warn('Failed to load sqlite-vss extension. Vector search will be disabled.', error);
+      console.error('Failed to initialize LanceDB:', error);
     }
   }
 
@@ -44,24 +50,42 @@ export class SqliteClient {
         metadata TEXT
       );
 
-      -- Virtual table for vector search using vss0
-      -- We check if the module is loaded before creating to avoid errors if load failed
-      -- Note: In a real app, we might handle this conditionally.
-      -- Here we assume vss0 is available if load succeeded.
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS image_tags (
+        image_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (image_id, tag_id),
+        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS albums (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        cover_image_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS album_images (
+        album_id TEXT NOT NULL,
+        image_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (album_id, image_id),
+        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+      );
     `;
     
     this.db.exec(schema);
-
-    // Create vss table separately to handle potential missing extension gracefully
-    try {
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS image_vectors USING vss0(
-          vector(512)
-        );
-      `);
-    } catch (e) {
-      console.warn('Could not create virtual vector table (vss0 might be missing).');
-    }
   }
 
   // --- Image Operations ---
@@ -115,50 +139,170 @@ export class SqliteClient {
     return row ? this.mapRowToImage(row) : undefined;
   }
 
-  deleteImages(ids: string[]) {
+  getImageById(id: string): LocalImage | undefined {
+    const stmt = this.db.prepare('SELECT * FROM images WHERE id = ?');
+    const row = stmt.get(id) as any;
+    return row ? this.mapRowToImage(row) : undefined;
+  }
+
+  // --- Tag Operations ---
+
+  getTags() {
+    return this.db.prepare('SELECT * FROM tags ORDER BY updated_at DESC').all();
+  }
+
+  createTag(name: string) {
+    const id = uuidv4();
+    const now = Date.now();
+    this.db.prepare('INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run(id, name, now, now);
+    return { id, name, createdAt: now, updatedAt: now };
+  }
+
+  updateTag(id: string, name: string) {
+    const now = Date.now();
+    this.db.prepare('UPDATE tags SET name = ?, updated_at = ? WHERE id = ?').run(name, now, id);
+    return this.db.prepare('SELECT * FROM tags WHERE id = ?').get(id);
+  }
+
+  deleteTag(id: string) {
+    this.db.prepare('DELETE FROM tags WHERE id = ?').run(id);
+    return { success: true };
+  }
+
+  // --- Album Operations ---
+
+  getAlbums() {
+    const albums = this.db.prepare('SELECT * FROM albums ORDER BY updated_at DESC').all() as any[];
+    // Get image count for each album
+    return albums.map(album => {
+      const count = this.db.prepare('SELECT COUNT(*) as count FROM album_images WHERE album_id = ?').get(album.id) as { count: number };
+      return { ...album, imageCount: count.count };
+    });
+  }
+
+  createAlbum(name: string, description?: string) {
+    const id = uuidv4();
+    const now = Date.now();
+    this.db.prepare('INSERT INTO albums (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, name, description || null, now, now);
+    return { id, name, description, createdAt: now, updatedAt: now, imageCount: 0 };
+  }
+
+  updateAlbum(id: string, name: string, description?: string) {
+    const now = Date.now();
+    this.db.prepare('UPDATE albums SET name = ?, description = ?, updated_at = ? WHERE id = ?').run(name, description || null, now, id);
+    return this.db.prepare('SELECT * FROM albums WHERE id = ?').get(id);
+  }
+
+  deleteAlbum(id: string) {
+    this.db.prepare('DELETE FROM albums WHERE id = ?').run(id);
+    return { success: true };
+  }
+
+  getAlbumById(id: string) {
+    const album = this.db.prepare('SELECT * FROM albums WHERE id = ?').get(id) as any;
+    if (!album) return null;
+    const count = this.db.prepare('SELECT COUNT(*) as count FROM album_images WHERE album_id = ?').get(id) as { count: number };
+    return { ...album, imageCount: count.count };
+  }
+
+  addImagesToAlbum(albumId: string, imageIds: string[]) {
+    const now = Date.now();
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO album_images (album_id, image_id, created_at) VALUES (?, ?, ?)');
+    const transaction = this.db.transaction((ids: string[]) => {
+      for (const imgId of ids) {
+        stmt.run(albumId, imgId, now);
+      }
+    });
+    transaction(imageIds);
+    return { success: true };
+  }
+
+  removeImagesFromAlbum(albumId: string, imageIds: string[]) {
+    const stmt = this.db.prepare('DELETE FROM album_images WHERE album_id = ? AND image_id = ?');
+    const transaction = this.db.transaction((ids: string[]) => {
+      for (const imgId of ids) {
+        stmt.run(albumId, imgId);
+      }
+    });
+    transaction(imageIds);
+    return { success: true };
+  }
+
+  async deleteImages(ids: string[]) {
     const deleteImage = this.db.prepare('DELETE FROM images WHERE id = ?');
-    const deleteVector = this.db.prepare('DELETE FROM image_vectors WHERE rowid = (SELECT rowid FROM images WHERE id = ?)'); // This logic depends on how we link vectors. Usually by rowid.
 
     const transaction = this.db.transaction((imageIds: string[]) => {
       for (const id of imageIds) {
-        // Need to handle vector deletion logic correctly based on vss implementation
-        // For vss0, usually we manage rowids. If we don't sync rowids explicitly, deletion might be tricky.
-        // Simplified: just delete from images for now.
         deleteImage.run(id);
       }
     });
 
     transaction(ids);
+
+    // Delete from LanceDB
+    if (this.vectorTable && ids.length > 0) {
+      try {
+        const idList = ids.map(id => `'${id}'`).join(', ');
+        await this.vectorTable.delete(`id IN (${idList})`);
+      } catch (e) {
+        console.error('Failed to delete vectors from LanceDB:', e);
+      }
+    }
   }
 
   // --- Vector Operations ---
 
-  addVector(imageId: string, embedding: number[]) {
-    // We need the rowid of the image to link it.
-    // Or we store the imageId in the vector table if supported, but vss0 usually takes rowid.
-    // Strategy: Use the same rowid for images and image_vectors if possible, or store a mapping.
-    // Simple strategy: Get rowid from images table.
-    const row = this.db.prepare('SELECT rowid FROM images WHERE id = ?').get(imageId) as { rowid: number };
-    if (!row) return;
+  async addVector(imageId: string, embedding: number[]) {
+    if (!this.lance) return;
 
-    const stmt = this.db.prepare('INSERT INTO image_vectors(rowid, vector) VALUES (?, ?)');
-    stmt.run(row.rowid, JSON.stringify(embedding));
+    const data = [{ id: imageId, vector: embedding }];
+    
+    try {
+      if (!this.vectorTable) {
+        const tableNames = await this.lance.tableNames();
+        if (tableNames.includes('image_vectors')) {
+          this.vectorTable = await this.lance.openTable('image_vectors');
+          await this.vectorTable.add(data);
+        } else {
+          this.vectorTable = await this.lance.createTable('image_vectors', data);
+        }
+      } else {
+        await this.vectorTable.add(data);
+      }
+    } catch (e) {
+      console.error('Failed to add vector to LanceDB:', e);
+    }
   }
 
-  searchByVector(embedding: number[], limit: number = 20): LocalImage[] {
-    // vss search
+  async searchByVector(embedding: number[], limit: number = 20): Promise<LocalImage[]> {
+    if (!this.lance) return [];
+
     try {
-      const stmt = this.db.prepare(`
-        SELECT images.*, v.distance
-        FROM image_vectors v
-        JOIN images ON images.rowid = v.rowid
-        WHERE v.vector MATCH ?
-        ORDER BY v.distance
-        LIMIT ?
-      `);
+      if (!this.vectorTable) {
+        const tableNames = await this.lance.tableNames();
+        if (tableNames.includes('image_vectors')) {
+          this.vectorTable = await this.lance.openTable('image_vectors');
+        } else {
+          return [];
+        }
+      }
+
+      const results = await this.vectorTable.search(embedding).limit(limit).toArray();
       
-      const rows = stmt.all(JSON.stringify(embedding), limit) as any[];
-      return rows.map(this.mapRowToImage);
+      if (results.length === 0) return [];
+
+      const ids = results.map(r => r.id as string);
+      
+      // Fetch from SQLite
+      const placeholders = ids.map(() => '?').join(',');
+      const stmt = this.db.prepare(`SELECT * FROM images WHERE id IN (${placeholders})`);
+      const rows = stmt.all(...ids) as any[];
+      const images = rows.map(this.mapRowToImage);
+
+      // Reorder to match search results
+      const imageMap = new Map(images.map(img => [img.id, img]));
+      return ids.map(id => imageMap.get(id)).filter(img => img !== undefined) as LocalImage[];
+
     } catch (e) {
       console.error('Vector search failed:', e);
       return [];

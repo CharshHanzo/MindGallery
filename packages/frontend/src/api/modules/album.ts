@@ -7,11 +7,19 @@ import type {
   AlbumImageResponse,
   AlbumImageRequest
 } from '@mindgallery/shared'
+import { universalApi } from '../unified-client'
+
+// Detect environment
+const isElectron = !!window.electronAPI;
 
 /**
  * 获取相册列表
  */
 export const getAlbumList = async (): Promise<AlbumsListResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:list') as unknown as AlbumsListResponse;
+  }
+
   const response = await fetch('/api/albums')
 
   if (!response.ok) {
@@ -25,6 +33,10 @@ export const getAlbumList = async (): Promise<AlbumsListResponse> => {
  * 创建新相册
  */
 export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:create', data) as unknown as CreateAlbumResponse;
+  }
+
   const response = await fetch('/api/albums', {
     method: 'POST',
     headers: {
@@ -44,6 +56,10 @@ export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbum
  * 获取相册详情
  */
 export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:get', { id: albumId }) as unknown as AlbumDetailResponse;
+  }
+
   const response = await fetch(`/api/albums/${albumId}`)
 
   if (!response.ok) {
@@ -57,6 +73,10 @@ export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailRespon
  * 更新相册
  */
 export const updateAlbum = async (albumId: string, data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:update', { id: albumId, ...data }) as unknown as CreateAlbumResponse;
+  }
+
   const response = await fetch(`/api/albums/${albumId}`, {
     method: 'PUT',
     headers: {
@@ -76,6 +96,10 @@ export const updateAlbum = async (albumId: string, data: CreateAlbumRequest): Pr
  * 删除相册
  */
 export const deleteAlbum = async (albumId: string): Promise<{ success: boolean; message: string }> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:delete', { id: albumId }) as unknown as { success: boolean; message: string };
+  }
+
   const response = await fetch(`/api/albums/${albumId}`, {
     method: 'DELETE',
   })
@@ -91,6 +115,10 @@ export const deleteAlbum = async (albumId: string): Promise<{ success: boolean; 
  * 添加图片到相册
  */
 export const addImagesToAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:add-images', { albumId, imageIds }) as unknown as AlbumImageResponse;
+  }
+
   const body: AlbumImageRequest = { imageIds }
   const response = await fetch(`/api/albums/${albumId}/images`, {
     method: 'POST',
@@ -122,6 +150,10 @@ export const addImagesToAlbum = async (albumId: string, imageIds: string[]): Pro
  * 从相册移除图片
  */
 export const removeImagesFromAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
+  if (isElectron) {
+    return await universalApi.backend.call('albums:remove-images', { albumId, imageIds }) as unknown as AlbumImageResponse;
+  }
+
   const body: AlbumImageRequest = { imageIds }
   const response = await fetch(`/api/albums/${albumId}/images`, {
     method: 'DELETE',
