@@ -274,20 +274,31 @@ export class SqliteClient {
     }
   }
 
-  async searchByVector(embedding: number[], limit: number = 20): Promise<LocalImage[]> {
+  async searchByVector(embedding: number[], limit: number = 20, modelName: string = 'taiyi'): Promise<LocalImage[]> {
     if (!this.lance) return [];
 
     try {
-      if (!this.vectorTable) {
-        const tableNames = await this.lance.tableNames();
-        if (tableNames.includes('image_vectors')) {
-          this.vectorTable = await this.lance.openTable('image_vectors');
+      // 构建动态表名
+      const tableName = `image_vectors_${modelName}`;
+      const fallbackTableName = 'image_vectors'; // 旧表名作为回退
+
+      // 检查表是否存在
+      const tableNames = await this.lance.tableNames();
+      let actualTableName = tableName;
+      
+      // 如果请求的表不存在，尝试回退表
+      if (!tableNames.includes(tableName)) {
+        if (tableNames.includes(fallbackTableName)) {
+          actualTableName = fallbackTableName;
+          console.log(`Table ${tableName} not found, falling back to ${actualTableName}`);
         } else {
           return [];
         }
       }
 
-      const results = await this.vectorTable.search(embedding).limit(limit).toArray();
+      // 打开表并执行搜索
+      const table = await this.lance.openTable(actualTableName);
+      const results = await table.search(embedding).limit(limit).toArray();
       
       if (results.length === 0) return [];
 

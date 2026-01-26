@@ -120,7 +120,7 @@ const validateAndSanitizePath = (targetPath: string): string => {
     throw new Error('Invalid path: Traversal detected');
   }
   
-  // Whitelist common user directories
+  // Whitelist common user directories and project data paths
   const allowedRoots = [
     app.getPath('home'),
     app.getPath('userData'),
@@ -130,11 +130,26 @@ const validateAndSanitizePath = (targetPath: string): string => {
     app.getPath('pictures'),
     app.getPath('music'),
     app.getPath('videos'),
-    app.getPath('desktop')
+    app.getPath('desktop'),
+    // Project-specific data directories (absolute paths)
+    path.normalize('E:\\MindGallery\\mindgallery-monorepo\\packages\\desktop-electron\\data'), // Normalized absolute path
+    path.normalize('E:\\MindGallery\\mindgallery-monorepo\\packages\\desktop-electron\\data\\uploads'), // Normalized uploads path
+    // Also include path relative to electron process (from current working directory)
+    path.normalize(path.join(process.cwd(), 'packages', 'desktop-electron', 'data')),
+    path.normalize(path.join(process.cwd(), 'packages', 'desktop-electron', 'data', 'uploads'))
   ];
   
+  // Normalize and convert to lowercase for consistent comparison
+  const normalizedPathLower = normalizedPath.toLowerCase();
+  const allowedRootsLower = allowedRoots.map(root => {
+    const normalizedRoot = path.normalize(root);
+    return normalizedRoot.toLowerCase();
+  });
+  
   // Check if the path starts with any of the allowed roots
-  const isAllowed = allowedRoots.some(root => normalizedPath.toLowerCase().startsWith(root.toLowerCase()));
+  const isAllowed = allowedRootsLower.some(root => {
+    return normalizedPathLower.startsWith(root);
+  });
   
   if (!isAllowed) {
     console.warn(`Access denied to path: ${normalizedPath}`);
