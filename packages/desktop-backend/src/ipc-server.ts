@@ -3,6 +3,8 @@ import { fileManager } from './services/file-manager';
 import { imageProcessor } from './services/image-processor';
 import { vectorService } from './services/vector-service';
 import { IpcRequest, IpcResponse, LocalImage, ListOptions } from './types';
+import fs from 'fs-extra';
+import path from 'path';
 
 export class IpcServer {
   private db: SqliteClient;
@@ -52,6 +54,12 @@ export class IpcServer {
       case 'images:import-folder':
         return this.importFolder(params.folderPath);
       
+      case 'images:import-files':
+        return this.importFiles(params.filePaths);
+      
+      case 'images:upload-buffer':
+        return this.uploadBuffer(params.base64, params.fileName);
+      
       case 'images:list':
         const listParams = params as ListOptions;
         const items = this.db.getImages(listParams);
@@ -65,10 +73,18 @@ export class IpcServer {
         };
       
       case 'images:get':
+        if (params.id) {
+          return this.db.getImageById(params.id);
+        }
         if (params.vector) {
           return await this.db.searchByVector(params.vector, params.limit);
         }
-        // Fallback or text search if implemented
+        if (params.text && typeof params.text === 'string' && params.text.trim().length > 0) {
+          const embedding = await vectorService.generateTextEmbedding(params.text.trim());
+          if (embedding.length > 0) {
+            return await this.db.searchByVector(embedding, params.limit);
+          }
+        }
         return [];
 
       case 'images:delete':
@@ -225,5 +241,18 @@ export class IpcServer {
     }
 
     return results;
+  }
+
+  private async uploadBuffer(base64: string, fileName?: string) {
+    const baseDir = process.env.APP_DATA_PATH || path.join(process.cwd(), 'data');
+    const uploadDir = path.join(baseDir, 'uploads');
+    await fs.ensureDir(uploadDir);
+    const safeName = path.basename(fileName || 'upload.bin').replace(/\s+/g, '_');
+    const finalName = `${Date.now()}_${safeName}`;
+    const targetPath = path.join(uploadDir, finalName);
+    const buffer = Buffer.from(base64, 'base64');
+    await fs.writeFile(targetPath, buffer);
+    const results = await this.importFiles([targetPath]);
+    return results[0];
   }
 }

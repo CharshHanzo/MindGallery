@@ -13,21 +13,80 @@ import { universalApi } from '../unified-client'
 // Detect environment
 const isElectron = !!window.electronAPI;
 
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 32768;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...Array.from(chunk));
+  }
+  return btoa(binary);
+};
+
+const mapLocalToImageInfo = (item: {
+  id: string;
+  filePath: string;
+  fileName: string;
+  fileSize: number;
+  createdAt: number;
+  width?: number;
+  height?: number;
+  format?: string;
+}) => {
+  const normalizedPath = item.filePath.replace(/\\/g, '/');
+  const url = `file:///${normalizedPath}`;
+  return {
+    id: item.id,
+    filename: item.fileName,
+    url,
+    thumbnailUrl: url,
+    fileSize: item.fileSize,
+    uploadTime: new Date(item.createdAt).toISOString(),
+    tags: [],
+    title: undefined,
+    description: undefined,
+    width: item.width,
+    height: item.height,
+    takenTime: undefined,
+    albums: []
+  };
+};
+
 /**
  * 上传单张图片
  */
 export const uploadSingleImage = async (formData: FormData): Promise<UploadImageResponse> => {
   if (isElectron) {
     const file = formData.get('files') as File;
-    if (!file || !(file as any).path) {
-      throw new Error('Electron environment requires file path');
+    if (!file) {
+      throw new Error('未选择文件');
     }
-    const result = await universalApi.backend.call('images:import-files', {
-      filePaths: [(file as any).path]
-    });
-    // Adapt response to UploadImageResponse structure if needed
-    // Assuming backend returns LocalImage[] and frontend handles it
-    return result[0] as unknown as UploadImageResponse;
+    const filePath = (file as any).path;
+    if (filePath) {
+      const result = await universalApi.backend.call('images:import-files', {
+        filePaths: [filePath]
+      });
+      const info = mapLocalToImageInfo(result[0]);
+      return {
+        success: true,
+        message: 'ok',
+        data: info
+      };
+    } else {
+      const buffer = await file.arrayBuffer();
+      const base64 = arrayBufferToBase64(buffer);
+      const image = await universalApi.backend.call('images:upload-buffer', {
+        base64,
+        fileName: file.name
+      });
+      const info = mapLocalToImageInfo(image);
+      return {
+        success: true,
+        message: 'ok',
+        data: info
+      };
+    }
   }
 
   const response = await fetch('/api/upload', {
@@ -54,8 +113,16 @@ export const uploadMultipleImages = async (formData: FormData): Promise<BatchUpl
       throw new Error('No valid file paths found for upload');
     }
 
-    const result = await universalApi.backend.call('images:import-files', { filePaths });
-    return result as unknown as BatchUploadImageResponse;
+    const result = await universalApi.backend.call('images:import-files', { filePaths }) as Array<{
+      id: string; filePath: string; fileName: string; fileSize: number; createdAt: number; width?: number; height?: number; format?: string;
+    }>;
+    const data = result.map(mapLocalToImageInfo);
+    return {
+      success: true,
+      message: 'ok',
+      data,
+      count: data.length
+    };
   }
 
   const response = await fetch('/api/upload/batch', {
@@ -82,9 +149,52 @@ export const getImageList = async (params?: {
   sortOrder?: 'asc' | 'desc';
 }): Promise<ImagesListResponse> => {
   if (isElectron) {
-    // Calculate offset from page/limit
     const limit = params?.limit || 50;
     const offset = ((params?.page || 1) - 1) * limit;
+
+    // Vector text search when search is provided
+    if (params?.search && params.search.trim().length > 0) {
+      const items = await universalApi.backend.call('images:get', { text: params.search.trim(), limit }) as Array<{
+        id: string;
+        filePath: string;
+        fileName: string;
+        fileSize: number;
+        createdAt: number;
+        updatedAt: number;
+        width?: number;
+        height?: number;
+        format?: string;
+        metadata?: Record<string, any>;
+      }>;
+      const data = items.map(item => {
+        const normalizedPath = item.filePath.replace(/\\/g, '/');
+        const url = `file:///${normalizedPath}`;
+        return {
+          id: item.id,
+          filename: item.fileName,
+          url,
+          thumbnailUrl: url,
+          fileSize: item.fileSize,
+          uploadTime: new Date(item.createdAt).toISOString(),
+          tags: [],
+          title: undefined,
+          description: undefined,
+          width: item.width,
+          height: item.height,
+          takenTime: undefined,
+          albums: []
+        };
+      });
+      return {
+        success: true,
+        message: 'ok',
+        data,
+        count: data.length,
+        total: data.length,
+        page: 1,
+        limit
+      };
+    }
 
     const listParams: any = {
       limit,
@@ -92,11 +202,6 @@ export const getImageList = async (params?: {
       sortBy: params?.sortBy,
       sortOrder: params?.sortOrder
     };
-
-    // If search is provided, we might want to use search endpoint instead
-    // But currently backend list doesn't support search text.
-    // If it's a vector search, it's different.
-    // Assuming this is basic list for now.
 
     const result = await universalApi.backend.call('images:list', listParams) as {
       items: Array<{
@@ -170,8 +275,15 @@ export const getImageList = async (params?: {
  */
 export const getImageDetail = async (imageId: string): Promise<ImageDetailResponse> => {
   if (isElectron) {
-    const image = await universalApi.backend.call('images:get', { id: imageId });
-    return image as unknown as ImageDetailResponse;
+    const item = await universalApi.backend.call('images:get', { id: imageId }) as {
+      id: string; filePath: string; fileName: string; fileSize: number; createdAt: number; width?: number; height?: number; format?: string;
+    };
+    const data = mapLocalToImageInfo(item);
+    return {
+      success: true,
+      message: 'ok',
+      data
+    };
   }
 
   const response = await fetch(`/api/images/${imageId}`)

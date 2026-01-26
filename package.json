@@ -7,12 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -k -n \"FRONTEND,BACKEND,ELECTRON\" -c \"bgBlue.bold,bgGreen.bold,bgYellow.bold\" \"npm run dev:frontend\" \"npm run dev:backend\" \"wait-on tcp:5175 && npm run dev:electron\"",
+    "dev": "concurrently -k -n \"FRONTEND,BACKEND,ELECTRON,AI\" -c \"bgBlue.bold,bgGreen.bold,bgYellow.bold,bgMagenta.bold\" \"npm run dev:frontend\" \"npm run dev:backend\" \"wait-on tcp:5175 && npm run dev:electron\" \"npm run dev:clip\"",
     "dev:legacy": "concurrently -n \"Docker,前端,后端,AI服务\" -c \"bgRed.bold,bgBlue.bold,bgGreen.bold,bgMagenta.bold\" \"npm run docker:up\" \"npm run dev:frontend\" \"npm run dev:legacy-backend\" \"npm run dev:clip\"",
     "dev:frontend": "npm run dev -w packages/frontend",
     "dev:backend": "npm run dev -w packages/desktop-backend",
     "dev:legacy-backend": "cd packages/backend && npm run dev",
-    "dev:clip": "cd packages/clip-service && .\\venv\\Scripts\\python.exe clip_vector_service.py",
+    "dev:clip": "cd packages/clip-service && python clip_vector_service.py",
     "dev:electron": "npm run dev -w packages/desktop-electron",
     "build": "npm run build --workspaces",
     "install:all": "npm install",
