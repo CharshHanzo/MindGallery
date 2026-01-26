@@ -42,7 +42,7 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true,
+      webSecurity: app.isPackaged,
       sandbox: false 
     },
   });
@@ -60,20 +60,21 @@ const createWindow = () => {
       ? [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval'",
           `connect-src 'self' http://localhost:${VITE_PORT} ws://localhost:${VITE_PORT}`,
-          "img-src 'self' data: file: asset:",
+          "img-src 'self' data: blob: file: asset: http: https:",
           "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
         ]
       : [
           "default-src 'self'",
           "script-src 'self'", 
           "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: file: asset:"
+          "img-src 'self' data: blob: file: asset: https:"
         ];
 
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [cspDirectives.join('; ')]
+        'Content-Security-Policy': [cspDirectives.join('; ')],
+        'content-security-policy': [cspDirectives.join('; ')]
       }
     });
   });

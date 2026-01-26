@@ -60,6 +60,19 @@
         </el-radio-group>
 
         <el-button type="primary" @click="handleSearch" :icon="Search">搜索</el-button>
+        <el-button type="warning" plain @click="toggleSelectionMode">
+          {{ selectionMode ? '退出批量' : '批量操作' }}
+        </el-button>
+        <el-button
+          v-if="selectionMode"
+          type="danger"
+          :disabled="selectedCount === 0"
+          @click="deleteSelected"
+        >
+          删除已选 ({{ selectedCount }})
+        </el-button>
+        <el-button v-if="selectionMode" @click="selectAll">全选</el-button>
+        <el-button v-if="selectionMode" @click="clearSelection">清空</el-button>
       </div>
     </div>
 
@@ -70,7 +83,8 @@
           v-for="(image, index) in images"
           :key="image.id"
           class="image-item"
-          @click="previewImage(index)"
+          :class="{ selected: isSelected(image.id) && selectionMode }"
+          @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
         >
           <el-image
             :src="image.thumbnailUrl || image.url"
@@ -90,12 +104,16 @@
             </template>
           </el-image>
 
+          <div class="select-checkbox" v-if="selectionMode" @click.stop>
+            <el-checkbox :model-value="isSelected(image.id)" @change="toggleSelect(image.id)" />
+          </div>
+
           <div class="image-actions" @click.stop>
-            <el-button 
-              type="danger" 
-              circle 
-              size="small" 
-              :icon="Delete" 
+            <el-button
+              type="danger"
+              circle
+              size="small"
+              :icon="Delete"
               @click="handleDelete(image)"
               title="删除图片"
             />
@@ -236,9 +254,10 @@ import { ref, onMounted, computed, reactive } from 'vue'
 import { Search, SortUp, SortDown, Picture, Loading, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
-import { getImageList, updateImageInfo, deleteImage } from '@/api/modules/image'
+import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
 import { getTagList } from '@/api/modules/tag'
 import { getAlbumList } from '@/api/modules/album'
+import { universalApi } from '@/api'
 
 // 状态
 const loading = ref(false)
@@ -277,6 +296,8 @@ onMounted(async () => {
 const fetchImages = async () => {
   loading.value = true
   try {
+    // 清理旧的 blob URL
+    revokeBlobUrls()
     const response = await getImageList({
       page: page.value,
       limit: limit.value,
@@ -289,6 +310,9 @@ const fetchImages = async () => {
     if (response.success) {
       images.value = response.data
       total.value = response.total || 0
+      if (isElectron) {
+        await buildBlobUrlsForImages()
+      }
     }
   } catch (error) {
     console.error('获取图片列表失败:', error)
@@ -347,6 +371,90 @@ const handleSizeChange = (val: number) => {
 const handlePageChange = (val: number) => {
   page.value = val
   fetchImages()
+}
+
+const isElectron = !!(window as any).electronAPI
+const createdBlobUrls = ref<string[]>([])
+const extToMime: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif'
+}
+const urlToWindowsPath = (fileUrl: string) => {
+  const withoutScheme = fileUrl.replace(/^file:\/\//, '')
+  const decoded = decodeURI(withoutScheme)
+  const winPath = decoded.replace(/^\//, '').replace(/\//g, '\\')
+  return winPath
+}
+const buildBlobUrlsForImages = async () => {
+  const tasks = images.value.map(async (img, idx) => {
+    try {
+      const winPath = urlToWindowsPath(img.url)
+      const buffer = await universalApi.readFileBuffer(winPath)
+      const ext = (img.filename.split('.').pop() || '').toLowerCase()
+      const mime = extToMime['.' + ext] || 'image/*'
+      const blob = new Blob([buffer], { type: mime })
+      const blobUrl = URL.createObjectURL(blob)
+      createdBlobUrls.value.push(blobUrl)
+      images.value[idx] = { ...img, url: blobUrl, thumbnailUrl: blobUrl }
+    } catch (e) {
+      // 忽略单个失败，继续其他
+    }
+  })
+  await Promise.all(tasks)
+}
+const revokeBlobUrls = () => {
+  createdBlobUrls.value.forEach(u => URL.revokeObjectURL(u))
+  createdBlobUrls.value = []
+}
+
+const selectionMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
+const selectedCount = computed(() => selectedIds.value.size)
+const toggleSelectionMode = () => {
+  selectionMode.value = !selectionMode.value
+  selectedIds.value = new Set()
+}
+const isSelected = (id: string) => selectedIds.value.has(id)
+const toggleSelect = (id: string) => {
+  const s = new Set(selectedIds.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  selectedIds.value = s
+}
+const selectAll = () => {
+  selectedIds.value = new Set(images.value.map(i => i.id))
+}
+const clearSelection = () => {
+  selectedIds.value = new Set()
+}
+const deleteSelected = async () => {
+  if (selectedIds.value.size === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
+      '批量删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    const ids = Array.from(selectedIds.value)
+    await deleteImages(ids)
+    images.value = images.value.filter(item => !selectedIds.value.has(item.id))
+    total.value = Math.max(0, total.value - ids.length)
+    ElMessage.success('批量删除成功')
+    toggleSelectionMode()
+    revokeBlobUrls()
+    await fetchImages()
+  } catch (e) {}
 }
 
 // 预览图片
@@ -431,7 +539,7 @@ const handleDelete = (image: ImageInfo) => {
 
 const handleDeleteFromDialog = () => {
   if (!currentImage.value) return
-  
+
   ElMessageBox.confirm(
     `确定要删除图片 "${currentImage.value.filename}" 吗？此操作不可恢复。`,
     '删除确认',
@@ -587,6 +695,19 @@ const handleDeleteFromDialog = () => {
     transition: opacity 0.3s;
     z-index: 10;
   }
+  .select-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 11;
+    background: rgba(255,255,255,0.85);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+.image-item.selected {
+  outline: 2px solid #409EFF;
+}
 
   .image-placeholder, .image-error {
     width: 100%;

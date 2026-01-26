@@ -7,7 +7,10 @@
         </template>
 
         <template #extra>
-          <div>
+          <div class="flex gap-2">
+            <el-button @click="handleImportFolderClick">
+              导入文件夹
+            </el-button>
             <el-button
               type="primary"
               @click="handleUpload"
@@ -20,6 +23,7 @@
         </template>
       </el-page-header>
     </div>
+
     <div class="upload">
       <div class="upload-content">
         <el-upload
@@ -262,11 +266,10 @@ import { useRouter } from 'vue-router'
 import { ref, onMounted, computed } from 'vue'
 import { Plus, Close, Picture, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus'
-
 import type { TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import type { CheckboxValueType, UploadFile} from 'element-plus'
-import { uploadImages } from '@/api'
-import { getTagList,deleteTag,createTag } from '@/api/modules/tag'
+import { uploadImages, universalApi } from '@/api'
+import { getTagList, deleteTag, createTag } from '@/api/modules/tag'
 import { getAlbumList, createAlbum, addImagesToAlbum } from '@/api/modules/album'
 import type { BatchUploadImageResponse } from '@mindgallery/shared/src/types/api'
 
@@ -276,6 +279,42 @@ const previewImages = ref<Array<{url: string, name: string, size: number, file: 
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadRef = ref()
+// 目录导入：直接选择并导入
+const handleImportFolderClick = async () => {
+  try {
+    const path = await universalApi.selectDirectory()
+    if (path) {
+      await importFolderImages(path)
+    }
+  } catch (err: any) {
+    ElMessage.error(err?.message || '选择文件夹失败')
+  }
+}
+const importFolderImages = async (path: string) => {
+  const loading = ElLoading.service({
+    lock: true,
+    text: '正在导入文件夹...',
+    background: 'rgba(0, 0, 0, 0.7)',
+  })
+
+  try {
+    const { importFolder } = await import('@/api/modules/image')
+    const result = await importFolder(path)
+    if (result.success) {
+      ElMessage.success(result.message || '导入成功')
+      setTimeout(() => {
+        router.push('/')
+      }, 1500)
+    } else {
+      ElMessage.error('导入失败')
+    }
+  } catch (error: any) {
+    console.error('导入文件夹失败:', error)
+    ElMessage.error(error.message || '导入文件夹失败')
+  } finally {
+    loading.close()
+  }
+}
 
 // 单张图片设置相关
 const imageSettingsVisible = ref(false)

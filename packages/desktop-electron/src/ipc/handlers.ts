@@ -85,6 +85,7 @@ class ServiceManager {
 }
 
 const serviceManager = new ServiceManager();
+let lastSelectedDirectory: string | null = null;
 
 // Helper for error handling
 const handleIpc = async <T>(handler: () => Promise<T> | T): Promise<IpcResponse<T>> => {
@@ -156,9 +157,13 @@ export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
       const mainWindow = getMainWindow();
       if (!mainWindow) throw new Error('Main window not available');
       const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openDirectory']
+        properties: ['openDirectory'],
+        defaultPath: lastSelectedDirectory ? path.dirname(lastSelectedDirectory) : app.getPath('desktop')
       });
-      return result.canceled ? null : result.filePaths[0];
+      if (result.canceled) return null;
+      const selected = result.filePaths[0];
+      lastSelectedDirectory = selected;
+      return selected;
     });
   });
 

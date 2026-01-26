@@ -37,6 +37,13 @@ temp/
 *.sqlite-wal
 *.sqlite-shm
 
+# 桌面应用本地数据（SQLite、向量库等运行时生成）
+packages/desktop-electron/data/
+packages/desktop-backend/data/
+
+# 开发者本机数据库配置文件
+.devdbrc
+
 # Ollama
 .ollama/
 models/

@@ -22,8 +22,8 @@ export const uploadSingleImage = async (formData: FormData): Promise<UploadImage
     if (!file || !(file as any).path) {
       throw new Error('Electron environment requires file path');
     }
-    const result = await universalApi.backend.call('images:import-files', { 
-      filePaths: [(file as any).path] 
+    const result = await universalApi.backend.call('images:import-files', {
+      filePaths: [(file as any).path]
     });
     // Adapt response to UploadImageResponse structure if needed
     // Assuming backend returns LocalImage[] and frontend handles it
@@ -49,7 +49,7 @@ export const uploadMultipleImages = async (formData: FormData): Promise<BatchUpl
   if (isElectron) {
     const files = formData.getAll('files') as File[];
     const filePaths = files.map(f => (f as any).path).filter(Boolean);
-    
+
     if (filePaths.length === 0) {
       throw new Error('No valid file paths found for upload');
     }
@@ -73,8 +73,8 @@ export const uploadMultipleImages = async (formData: FormData): Promise<BatchUpl
 /**
  * 获取图片列表
  */
-export const getImageList = async (params?: { 
-  page?: number; 
+export const getImageList = async (params?: {
+  page?: number;
   limit?: number;
   search?: string;
   tags?: string[];
@@ -85,7 +85,7 @@ export const getImageList = async (params?: {
     // Calculate offset from page/limit
     const limit = params?.limit || 50;
     const offset = ((params?.page || 1) - 1) * limit;
-    
+
     const listParams: any = {
       limit,
       offset,
@@ -97,11 +97,55 @@ export const getImageList = async (params?: {
     // But currently backend list doesn't support search text.
     // If it's a vector search, it's different.
     // Assuming this is basic list for now.
-    
-    const result = await universalApi.backend.call('images:list', listParams);
-    
-    // Backend now returns full pagination info
-    return result as unknown as ImagesListResponse;
+
+    const result = await universalApi.backend.call('images:list', listParams) as {
+      items: Array<{
+        id: string;
+        filePath: string;
+        fileName: string;
+        fileSize: number;
+        createdAt: number;
+        updatedAt: number;
+        width?: number;
+        height?: number;
+        format?: string;
+        metadata?: Record<string, any>;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+
+    const data = result.items.map(item => {
+      const normalizedPath = item.filePath.replace(/\\/g, '/');
+      const url = `file:///${normalizedPath}`;
+      return {
+        id: item.id,
+        filename: item.fileName,
+        url,
+        thumbnailUrl: url,
+        fileSize: item.fileSize,
+        uploadTime: new Date(item.createdAt).toISOString(),
+        tags: [],
+        title: undefined,
+        description: undefined,
+        width: item.width,
+        height: item.height,
+        takenTime: undefined,
+        albums: []
+      };
+    });
+
+    return {
+      success: true,
+      message: 'ok',
+      data,
+      count: data.length,
+      total: result.total,
+      page: result.page,
+      limit: result.limit
+    };
   }
 
   const queryParams = new URLSearchParams()
@@ -159,6 +203,26 @@ export const deleteImage = async (imageId: string): Promise<DeleteImageResponse>
   return response.json()
 }
 
+export const deleteImages = async (imageIds: string[]): Promise<BatchOperationResponse> => {
+  if (isElectron) {
+    await universalApi.backend.call('images:delete', { imageIds });
+    return {
+      success: true,
+      message: 'deleted',
+      data: { deletedCount: imageIds.length, imageIds }
+    } as BatchOperationResponse;
+  }
+  const response = await fetch(`/api/images/batch-delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageIds })
+  });
+  if (!response.ok) {
+    throw new Error(`批量删除失败: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 /**
  * 更新图片信息
  */
@@ -182,6 +246,18 @@ export const updateImageInfo = async (imageId: string, data: UpdateImageRequest)
   }
 
   return response.json()
+}
+
+export const importFolder = async (folderPath: string): Promise<BatchUploadImageResponse> => {
+  if (isElectron) {
+    const result = await universalApi.backend.call('images:import-folder', { folderPath });
+    return {
+      success: result.success,
+      data: [], // Import folder returns stats, not image list currently. We might need to adjust or refetch.
+      message: `Successfully imported ${result.imported} images`
+    } as unknown as BatchUploadImageResponse;
+  }
+  throw new Error('Folder import is only supported in Electron mode');
 }
 
 /**
