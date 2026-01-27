@@ -136,7 +136,8 @@ export class IpcServer {
 
   private async importFolder(folderPath: string) {
     const files = await fileManager.scanDirectory(folderPath);
-    let imported = 0;
+    let processed = 0;
+    let newlyAdded = 0;
     let failed = 0;
     const errors: any[] = [];
 
@@ -147,7 +148,7 @@ export class IpcServer {
         // Check if exists by path
         const existingByPath = this.db.getImageByPath(filePath);
         if (existingByPath) {
-          imported++; // Skip but count as processed/imported
+          processed++; // Skip but count as processed
           continue;
         }
 
@@ -157,7 +158,7 @@ export class IpcServer {
         // Check if exists by hash
         const existingByHash = this.db.getImageByHash(metadata.hash);
         if (existingByHash) {
-          imported++; // Skip but count as processed/imported
+          processed++; // Skip but count as processed
           continue;
         }
 
@@ -181,28 +182,30 @@ export class IpcServer {
           await this.db.addVector(image.id, embedding);
         }
 
-        imported++;
+        processed++;
+        newlyAdded++;
       } catch (e: any) {
         failed++;
         errors.push({ path: filePath, error: e.message });
       }
 
       // Throttle progress updates
-      if (imported % 5 === 0) {
+      if (processed % 5 === 0) {
         this.sendEvent('import:progress', { 
-          current: imported + failed, 
+          current: processed + failed, 
           total: files.length, 
           currentPath: filePath 
         });
       }
     }
 
-    this.sendEvent('import:complete', { count: imported, duration: 0 });
+    this.sendEvent('import:complete', { count: newlyAdded, duration: 0 });
 
     return {
       success: true,
       total: files.length,
-      imported,
+      processed,
+      newlyAdded,
       failed,
       errors
     };

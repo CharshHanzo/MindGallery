@@ -363,10 +363,21 @@ export const updateImageInfo = async (imageId: string, data: UpdateImageRequest)
 export const importFolder = async (folderPath: string): Promise<BatchUploadImageResponse> => {
   if (isElectron) {
     const result = await universalApi.backend.call('images:import-folder', { folderPath });
+
+    // 根据是否有跳过的图片来决定显示哪种成功消息
+    const skippedCount = result.processed - result.newlyAdded;
+    let message: string;
+
+    if (skippedCount > 0) {
+      message = `成功导入 ${result.newlyAdded} 张图片，跳过 ${skippedCount} 张重复图片`;
+    } else {
+      message = `成功导入 ${result.newlyAdded} 张图片`;
+    }
+
     return {
       success: result.success,
       data: [], // Import folder returns stats, not image list currently. We might need to adjust or refetch.
-      message: `Successfully imported ${result.imported} images`
+      message
     } as unknown as BatchUploadImageResponse;
   }
   throw new Error('Folder import is only supported in Electron mode');
