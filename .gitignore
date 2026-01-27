@@ -51,3 +51,7 @@ models/
 **/venv/
 **/.venv/
 **/env/
+**/local-packages/
+
+# 模型缓存目录
+**/models_cache/

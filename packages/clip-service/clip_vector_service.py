@@ -1,6 +1,11 @@
 import os
-import torch
 import sys
+
+# Add local packages directory to Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'local-packages')))
+print(f"Added local packages directory to Python path: {os.path.abspath(os.path.join(os.path.dirname(__file__), 'local-packages'))}")
+
+import torch
 
 # Set Model Cache Directory to Project Local Directory BEFORE importing cn_clip
 model_cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'models_cache'))

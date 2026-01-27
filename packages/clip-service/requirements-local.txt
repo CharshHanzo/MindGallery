@@ -1,0 +1,9 @@
+--target=./local-packages
+torch==2.5.1
+torchvision==0.20.1
+git+https://github.com/OFA-Sys/Chinese-CLIP.git
+fastapi
+uvicorn
+pillow
+numpy<2.0.0
+python-multipart
