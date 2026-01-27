@@ -8,6 +8,7 @@ export interface LocalImage {
   width?: number;
   height?: number;
   format?: string;
+  hash?: string;
   metadata?: Record<string, any>;
 }
 

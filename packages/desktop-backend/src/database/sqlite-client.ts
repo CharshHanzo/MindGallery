@@ -47,8 +47,11 @@ export class SqliteClient {
         width INTEGER,
         height INTEGER,
         format TEXT,
+        hash TEXT,
         metadata TEXT
       );
+      
+      CREATE INDEX IF NOT EXISTS idx_images_hash ON images(hash);
 
       CREATE TABLE IF NOT EXISTS tags (
         id TEXT PRIMARY KEY,
@@ -95,8 +98,8 @@ export class SqliteClient {
     const now = Date.now();
     
     const stmt = this.db.prepare(`
-      INSERT INTO images (id, file_path, file_name, file_size, created_at, updated_at, width, height, format, metadata)
-      VALUES (@id, @filePath, @fileName, @fileSize, @createdAt, @updatedAt, @width, @height, @format, @metadata)
+      INSERT INTO images (id, file_path, file_name, file_size, created_at, updated_at, width, height, format, hash, metadata)
+      VALUES (@id, @filePath, @fileName, @fileSize, @createdAt, @updatedAt, @width, @height, @format, @hash, @metadata)
     `);
 
     const newImage: LocalImage = {
@@ -113,6 +116,12 @@ export class SqliteClient {
     });
 
     return newImage;
+  }
+
+  getImageByHash(hash: string): LocalImage | undefined {
+    const stmt = this.db.prepare('SELECT * FROM images WHERE hash = ?');
+    const row = stmt.get(hash) as any;
+    return row ? this.mapRowToImage(row) : undefined;
   }
 
   getImages(options: ListOptions): LocalImage[] {
@@ -344,6 +353,7 @@ export class SqliteClient {
       width: row.width,
       height: row.height,
       format: row.format,
+      hash: row.hash,
       metadata: row.metadata ? JSON.parse(row.metadata) : {}
     };
   }

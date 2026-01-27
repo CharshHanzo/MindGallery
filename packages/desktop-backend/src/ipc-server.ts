@@ -144,15 +144,22 @@ export class IpcServer {
 
     for (const filePath of files) {
       try {
-        // Check if exists
-        const existing = this.db.getImageByPath(filePath);
-        if (existing) {
+        // Check if exists by path
+        const existingByPath = this.db.getImageByPath(filePath);
+        if (existingByPath) {
           imported++; // Skip but count as processed/imported
           continue;
         }
 
         const stats = await fileManager.getFileStats(filePath);
         const metadata = await imageProcessor.processImage(filePath);
+
+        // Check if exists by hash
+        const existingByHash = this.db.getImageByHash(metadata.hash);
+        if (existingByHash) {
+          imported++; // Skip but count as processed/imported
+          continue;
+        }
 
         // Add to DB
         const image = this.db.addImage({
@@ -162,6 +169,7 @@ export class IpcServer {
           width: metadata.width,
           height: metadata.height,
           format: metadata.format,
+          hash: metadata.hash,
           metadata: { ...metadata, hash: metadata.hash }
         });
 
@@ -205,15 +213,22 @@ export class IpcServer {
     
     for (const filePath of filePaths) {
       try {
-        // Check if exists
-        const existing = this.db.getImageByPath(filePath);
-        if (existing) {
-          results.push(existing);
+        // Check if exists by path
+        const existingByPath = this.db.getImageByPath(filePath);
+        if (existingByPath) {
+          results.push(existingByPath);
           continue;
         }
 
         const stats = await fileManager.getFileStats(filePath);
         const metadata = await imageProcessor.processImage(filePath);
+
+        // Check if exists by hash
+        const existingByHash = this.db.getImageByHash(metadata.hash);
+        if (existingByHash) {
+          results.push(existingByHash);
+          continue;
+        }
 
         // Add to DB
         const image = this.db.addImage({
@@ -223,6 +238,7 @@ export class IpcServer {
           width: metadata.width,
           height: metadata.height,
           format: metadata.format,
+          hash: metadata.hash,
           metadata: { ...metadata, hash: metadata.hash }
         });
 
