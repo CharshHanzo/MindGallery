@@ -110,14 +110,6 @@
 
           <div class="image-actions" @click.stop>
             <el-button
-              type="primary"
-              circle
-              size="small"
-              :icon="Folder"
-              @click="openInFolder(image)"
-              title="在文件夹中打开"
-            />
-            <el-button
               type="danger"
               circle
               size="small"
@@ -245,6 +237,7 @@
       <template #footer>
         <span class="dialog-footer">
           <div class="left-actions">
+            <el-button type="primary" @click="openInFolderFromDialog" :icon="Folder">在文件夹中打开</el-button>
             <el-button type="danger" @click="handleDeleteFromDialog" :icon="Delete">删除图片</el-button>
           </div>
           <div class="right-actions">
@@ -593,6 +586,13 @@ const handleDeleteFromDialog = () => {
   })
 }
 
+// 在模态框中打开文件夹
+const openInFolderFromDialog = async () => {
+  if (!currentImage.value) return
+
+  await openInFolder(currentImage.value)
+}
+
 // 在文件夹中打开图片
 const openInFolder = async (image: ImageInfo) => {
   if (!isElectron) {
@@ -601,39 +601,21 @@ const openInFolder = async (image: ImageInfo) => {
   }
 
   try {
-    console.log('原始图片URL:', image.url)
-    console.log('图片对象:', image)
-
     // 检查是否是 blob URL
     if (image.url.startsWith('blob:')) {
-      console.error('错误：不能使用 blob URL 打开文件管理器')
-
       // 检查是否有原始文件路径
       if ((image as any).filePath) {
-        console.log('使用原始文件路径:', (image as any).filePath)
         await universalApi.openFileManager((image as any).filePath)
       } else {
-        // 如果没有原始路径，尝试从 blob URL 回退到 file:// URL
-        // 这需要重新构建 file:// URL
-        console.log('尝试从 blob URL 回退到 file:// URL')
-
-        // 如果图片有 filename，可以尝试构建路径（但可能不准确）
-        ElMessage.error('无法打开 blob URL 对应的文件，请刷新页面后重试')
+        // 如果没有原始路径，显示错误信息
+        ElMessage.error('无法打开该文件，请刷新页面后重试')
         return
       }
     } else {
       // 如果是 file:// URL，直接使用
-      console.log('使用 file:// URL')
-
-      // 将URL转换为Windows路径
       const winPath = urlToWindowsPath(image.url)
-      console.log('转换后的Windows路径:', winPath)
-
-      // 调用打开文件管理器的API
       await universalApi.openFileManager(winPath)
     }
-
-    ElMessage.success('已打开文件所在文件夹')
   } catch (error) {
     console.error('打开文件夹失败:', error)
     ElMessage.error('打开文件夹失败，请检查文件是否存在')
