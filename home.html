@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photos Pro - AI Library</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+      :root {
+        --sidebar-bg: rgba(246, 246, 246, 0.75);
+        --main-bg: #ffffff;
+        --accent-blue: #007aff;
+        --accent-red: #ff3b30;
+        --text-primary: #1d1d1f;
+        --text-secondary: #86868b;
+        --border-color: rgba(0, 0, 0, 0.1);
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+        background-color: #f5f5f7;
+        color: var(--text-primary);
+        height: 100vh;
+        display: flex;
+        overflow: hidden;
+      }
+
+      /* --- 侧边栏 --- */
+      aside {
+        width: 260px;
+        background-color: var(--sidebar-bg);
+        backdrop-filter: blur(30px) saturate(180%);
+        border-right: 0.5px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        padding: 40px 16px 20px;
+        z-index: 10;
+        flex-shrink: 0;
+      }
+
+      .sidebar-header {
+        padding-left: 12px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: -0.01em;
+      }
+
+      .nav-group { display: flex; flex-direction: column; gap: 2px; }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .nav-item i { width: 20px; color: var(--accent-blue); font-size: 16px; text-align: center; }
+      .nav-item:hover { background-color: rgba(0, 0, 0, 0.05); }
+      .nav-item.active { background-color: rgba(0, 0, 0, 0.08); }
+
+      /* --- 主内容区 --- */
+      main { flex: 1; background-color: var(--main-bg); display: flex; flex-direction: column; position: relative; min-width: 0; }
+
+      header {
+        height: 60px;
+        padding: 0 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+
+      .search-wrapper { position: relative; width: 380px; }
+      .search-wrapper i {
+        position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+        color: var(--text-secondary); font-size: 14px;
+      }
+
+      .search-input {
+        width: 100%; background-color: #f2f2f7; border: none;
+        padding: 8px 12px 8px 36px; border-radius: 10px; font-size: 14px; outline: none;
+      }
+
+      .header-actions { display: flex; align-items: center; gap: 16px; }
+
+      .text-btn {
+        background: none; border: none; color: var(--accent-blue);
+        font-size: 15px; font-weight: 500; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+      }
+      .text-btn:hover { background-color: rgba(0, 122, 255, 0.1); }
+
+      .scroll-content { flex: 1; overflow-y: auto; padding: 10px 40px 100px; }
+
+      /* --- 标题栏 --- */
+      .title-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding-bottom: 12px;
+      }
+
+      .page-title { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+
+      .sort-control {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: var(--accent-blue);
+        cursor: pointer;
+        padding: 6px 0;
+      }
+
+      .title-divider {
+        height: 0.5px;
+        background-color: var(--border-color);
+        margin-bottom: 24px;
+      }
+
+      /* --- 照片网格 --- */
+      .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
+      }
+
+      .photo-card {
+        position: relative; 
+        aspect-ratio: 1; 
+        border-radius: 6px;
+        overflow: hidden; 
+        background-color: #f5f5f7; 
+        cursor: pointer;
+        transition: transform 0.2s ease, opacity 0.3s ease;
+      }
+      .photo-card img { width: 100%; height: 100%; object-fit: cover; }
+
+      /* 选择态 */
+      .selecting .photo-card { transform: scale(0.92); }
+      .select-overlay {
+        position: absolute; top: 8px; left: 8px; width: 22px; height: 22px;
+        border-radius: 50%; border: 1.5px solid white; background: rgba(0, 0, 0, 0.2);
+        display: none; align-items: center; justify-content: center; color: white; font-size: 12px;
+      }
+      .selecting .select-overlay { display: flex; }
+      .photo-card.selected .select-overlay { background: var(--accent-blue); border-color: var(--accent-blue); }
+
+      /* --- 底部工具栏 --- */
+      .bottom-toolbar {
+        position: absolute; bottom: -80px; left: 50%; transform: translateX(-50%);
+        min-width: 400px; height: 60px; background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(20px) saturate(180%); border: 0.5px solid var(--border-color);
+        border-radius: 16px; display: flex; align-items: center; justify-content: space-around;
+        padding: 0 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 100;
+      }
+      .bottom-toolbar.active { bottom: 30px; }
+
+      .toolbar-item {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        color: var(--accent-blue); cursor: pointer; padding: 8px 16px;
+      }
+      .toolbar-item span { font-size: 11px; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <div class="sidebar-header">Photos</div>
+      <nav class="nav-group">
+        <a href="#" class="nav-item active"><i class="fa-solid fa-house"></i><span>所有照片</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-clock"></i><span>最近添加</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-heart"></i><span>个人收藏</span></a>
+      </nav>
+      <div class="sidebar-header" style="margin-top: 30px">Library</div>
+      <nav class="nav-group">
+        <a href="#" class="nav-item"><i class="fa-solid fa-rectangle-list"></i><span>相册</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-location-dot"></i><span>地点</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-user-group"></i><span>人物</span></a>
+      </nav>
+    </aside>
+
+    <main id="main-container">
+      <header>
+        <div class="search-wrapper">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" class="search-input" placeholder="搜索照片..." />
+        </div>
+        <div class="header-actions">
+          <input type="file" id="file-input" accept="image/*" multiple style="display: none;" />
+          <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;">
+            <i class="fa-solid fa-circle-plus"></i>
+          </div>
+          <button class="text-btn" id="btn-select">选择</button>
+        </div>
+      </header>
+
+      <div class="scroll-content">
+        <div class="title-bar">
+          <h1 class="page-title">所有照片</h1>
+          <div class="sort-control" id="btn-sort">
+            <i class="fa-solid fa-arrow-down-short-wide"></i>
+            <span>最新在前</span>
+          </div>
+        </div>
+        
+        <div class="title-divider"></div>
+
+        <div class="photo-grid" id="photo-grid">
+          <div class="photo-card" onclick="toggleSelect(this)">
+            <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=400&q=80" />
+            <div class="select-overlay"><i class="fa-solid fa-check"></i></div>
+          </div>
+          <div class="photo-card" onclick="toggleSelect(this)">
+            <img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=400&q=80" />
+            <div class="select-overlay"><i class="fa-solid fa-check"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-toolbar" id="toolbar">
+        <div class="toolbar-item"><i class="fa-solid fa-share-from-square"></i><span>共享</span></div>
+        <div class="toolbar-item"><i class="fa-solid fa-folder-plus"></i><span>添加到</span></div>
+        <div class="toolbar-item"><i class="fa-solid fa-heart"></i><span>收藏</span></div>
+        <div class="toolbar-item" style="color: var(--accent-red)" id="btn-delete">
+          <i class="fa-solid fa-trash-can"></i><span>删除</span>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const btnSelect = document.getElementById('btn-select');
+      const btnAdd = document.getElementById('btn-add');
+      const btnSort = document.getElementById('btn-sort');
+      const btnDelete = document.getElementById('btn-delete');
+      const fileInput = document.getElementById('file-input');
+      const photoGrid = document.getElementById('photo-grid');
+      const mainContainer = document.getElementById('main-container');
+      const toolbar = document.getElementById('toolbar');
+
+      let isSelecting = false;
+      let isDescending = true;
+
+      // 选择模式切换
+      btnSelect.addEventListener('click', () => {
+        isSelecting = !isSelecting;
+        btnSelect.textContent = isSelecting ? '取消' : '选择';
+        mainContainer.classList.toggle('selecting', isSelecting);
+        toolbar.classList.toggle('active', isSelecting);
+        if (!isSelecting) {
+          document.querySelectorAll('.photo-card').forEach(card => card.classList.remove('selected'));
+        }
+      });
+
+      // 照片点击
+      function toggleSelect(card) {
+        if (isSelecting) card.classList.toggle('selected');
+      }
+
+      // 新增照片
+      btnAdd.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        Array.from(e.target.files).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const div = document.createElement('div');
+            div.className = 'photo-card';
+            div.onclick = () => toggleSelect(div);
+            div.innerHTML = `<img src="${ev.target.result}"><div class="select-overlay"><i class="fa-solid fa-check"></i></div>`;
+            photoGrid.prepend(div);
+          };
+          reader.readAsDataURL(file);
+        });
+        fileInput.value = '';
+      });
+
+      // 排序功能
+      btnSort.addEventListener('click', () => {
+        isDescending = !isDescending;
+        const cards = Array.from(photoGrid.children);
+        photoGrid.append(...cards.reverse());
+        btnSort.querySelector('i').className = isDescending ? 'fa-solid fa-arrow-down-short-wide' : 'fa-solid fa-arrow-up-wide-short';
+        btnSort.querySelector('span').textContent = isDescending ? '最新在前' : '最早在前';
+      });
+
+      // 删除功能
+      btnDelete.addEventListener('click', () => {
+        const selected = document.querySelectorAll('.photo-card.selected');
+        selected.forEach(card => card.remove());
+        if (selected.length > 0 && isSelecting) btnSelect.click();
+      });
+    </script>
+  </body>
+</html>

@@ -1,252 +1,297 @@
 <template>
   <div class="all-gallery-view">
-    <!-- 顶部筛选栏 -->
-    <div class="filter-bar">
-      <div class="left-filters">
-        <!-- 搜索框 -->
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索图片描述或文件名"
-          class="search-input"
-          clearable
-          @keyup.enter="handleSearch"
-          @clear="handleSearch"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">Photos</div>
+      <nav class="nav-group">
+        <a href="#" class="nav-item active">
+          <i class="fa-solid fa-house"></i>
+          <span>所有照片</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-clock"></i>
+          <span>最近添加</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-heart"></i>
+          <span>个人收藏</span>
+        </a>
+      </nav>
+      <div class="sidebar-header" style="margin-top: 30px">Library</div>
+      <nav class="nav-group">
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-rectangle-list"></i>
+          <span>相册</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-location-dot"></i>
+          <span>地点</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-user-group"></i>
+          <span>人物</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main id="main-container" :class="{ selecting: selectionMode }">
+      <!-- 头部 -->
+      <header>
+        <div class="search-wrapper">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索照片..."
+            class="search-input"
+            clearable
+            @keyup.enter="handleSearch"
+            @clear="handleSearch"
+          >
+          </el-input>
+        </div>
+        <div class="header-actions">
+          <input type="file" id="file-input" accept="image/*" multiple style="display: none;" />
+          <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;">
+            <i class="fa-solid fa-circle-plus"></i>
+          </div>
+          <el-button class="text-btn" @click="toggleSelectionMode">
+            {{ selectionMode ? '取消' : '选择' }}
+          </el-button>
+        </div>
+      </header>
+
+      <div class="scroll-content">
+        <!-- 标题栏 -->
+        <div class="title-bar">
+          <h1 class="page-title">所有照片</h1>
+          <div class="sort-control" @click="toggleSortOrder">
+            <i class="fa-solid" :class="sortOrder === 'desc' ? 'fa-arrow-down-short-wide' : 'fa-arrow-up-wide-short'"></i>
+            <span>{{ sortOrder === 'desc' ? '最新在前' : '最早在前' }}</span>
+          </div>
+        </div>
+
+        <div class="title-divider"></div>
 
         <!-- 标签筛选 -->
-        <el-select
-          v-model="selectedTags"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          placeholder="筛选标签"
-          class="tag-select"
-          @change="handleTagChange"
-          clearable
-        >
-          <el-option
-            v-for="tag in availableTags"
-            :key="tag.id"
-            :label="tag.name"
-            :value="tag.name"
+        <div class="tag-filter" v-if="availableTags.length > 0">
+          <el-select
+            v-model="selectedTags"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="筛选标签"
+            class="tag-select"
+            @change="handleTagChange"
+            clearable
           >
-            <span style="float: left">{{ tag.name }}</span>
-            <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
-              {{ tag.count }}
-            </span>
-          </el-option>
-        </el-select>
-      </div>
+            <el-option
+              v-for="tag in availableTags"
+              :key="tag.id"
+              :label="tag.name"
+              :value="tag.name"
+            >
+              <span style="float: left">{{ tag.name }}</span>
+              <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
+                {{ tag.count }}
+              </span>
+            </el-option>
+          </el-select>
+        </div>
 
-      <div class="right-filters">
-        <!-- 排序 -->
-        <el-select v-model="sortBy" class="sort-select" @change="handleSortChange">
-          <el-option label="上传时间" value="uploadTime" />
-          <el-option label="文件名" value="filename" />
-          <el-option label="文件大小" value="fileSize" />
-        </el-select>
+        <!-- 图片列表 -->
+        <div v-loading="loading" class="gallery-content">
+          <div v-if="images.length > 0" class="photo-grid" id="photo-grid">
+            <div
+              v-for="(image, index) in images"
+              :key="image.id"
+              class="photo-card"
+              :class="{ selected: isSelected(image.id) && selectionMode }"
+              @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
+            >
+              <el-image
+                :src="image.thumbnailUrl || image.url"
+                :alt="image.filename"
+                fit="cover"
+                class="gallery-image"
+              >
+                <template #placeholder>
+                  <div class="image-placeholder">
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                  </div>
+                </template>
+                <template #error>
+                  <div class="image-error">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </template>
+              </el-image>
 
-        <el-radio-group v-model="sortOrder" @change="handleSortChange" class="sort-order">
-          <el-radio-button value="desc">
-            <el-icon><SortDown /></el-icon>
-          </el-radio-button>
-          <el-radio-button value="asc">
-            <el-icon><SortUp /></el-icon>
-          </el-radio-button>
-        </el-radio-group>
-
-        <el-button type="primary" @click="handleSearch" :icon="Search">搜索</el-button>
-        <el-button type="warning" plain @click="toggleSelectionMode">
-          {{ selectionMode ? '退出批量' : '批量操作' }}
-        </el-button>
-        <el-button
-          v-if="selectionMode"
-          type="danger"
-          :disabled="selectedCount === 0"
-          @click="deleteSelected"
-        >
-          删除已选 ({{ selectedCount }})
-        </el-button>
-        <el-button v-if="selectionMode" @click="selectAll">全选</el-button>
-        <el-button v-if="selectionMode" @click="clearSelection">清空</el-button>
-      </div>
-    </div>
-
-    <!-- 图片列表 -->
-    <div v-loading="loading" class="gallery-content">
-      <div v-if="images.length > 0" class="image-grid">
-        <div
-          v-for="(image, index) in images"
-          :key="image.id"
-          class="image-item"
-          :class="{ selected: isSelected(image.id) && selectionMode }"
-          @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
-        >
-          <el-image
-            :src="image.thumbnailUrl || image.url"
-            :alt="image.filename"
-            fit="cover"
-            class="gallery-image"
-          >
-            <template #placeholder>
-              <div class="image-placeholder">
-                <el-icon class="is-loading"><Loading /></el-icon>
+              <div class="select-overlay" v-if="selectionMode">
+                <i class="fa-solid fa-check"></i>
               </div>
-            </template>
-            <template #error>
-              <div class="image-error">
-                <el-icon><Picture /></el-icon>
-              </div>
-            </template>
-          </el-image>
 
-          <div class="select-checkbox" v-if="selectionMode" @click.stop>
-            <el-checkbox :model-value="isSelected(image.id)" @change="toggleSelect(image.id)" />
+              <div class="image-actions" @click.stop>
+                <el-button
+                  type="danger"
+                  circle
+                  size="small"
+                  :icon="Delete"
+                  @click="handleDelete(image)"
+                  title="删除图片"
+                />
+              </div>
+
+              <!-- 悬停显示信息 -->
+              <div class="image-overlay">
+                <div class="image-info">
+                  <div class="image-name">{{ image.filename }}</div>
+                  <div class="image-meta">
+                    <span>{{ formatFileSize(image.fileSize) }}</span>
+                    <span v-if="image.tags && image.tags.length > 0">
+                      <el-tag size="small" type="info" effect="dark" class="count-tag">
+                        {{ image.tags.length }} 标签
+                      </el-tag>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="image-actions" @click.stop>
-            <el-button
-              type="danger"
-              circle
-              size="small"
-              :icon="Delete"
-              @click="handleDelete(image)"
-              title="删除图片"
+          <!-- 空状态 -->
+          <el-empty v-else description="暂无图片" />
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-container" v-if="total > 0">
+          <el-pagination
+            v-model:current-page="page"
+            v-model:page-size="limit"
+            :page-sizes="[20, 50, 100, 200]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
+      </div>
+
+      <!-- 底部工具栏 -->
+      <div class="bottom-toolbar" :class="{ active: selectionMode }">
+        <div class="toolbar-item">
+          <i class="fa-solid fa-share-from-square"></i>
+          <span>共享</span>
+        </div>
+        <div class="toolbar-item">
+          <i class="fa-solid fa-folder-plus"></i>
+          <span>添加到</span>
+        </div>
+        <div class="toolbar-item">
+          <i class="fa-solid fa-heart"></i>
+          <span>收藏</span>
+        </div>
+        <div class="toolbar-item" style="color: var(--accent-red)" @click="deleteSelected">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>删除</span>
+        </div>
+      </div>
+
+      <!-- 图片大图预览和编辑模态框 -->
+      <el-dialog
+        v-model="detailDialogVisible"
+        title="图片详情"
+        width="80%"
+        top="5vh"
+        destroy-on-close
+        class="image-detail-dialog"
+      >
+        <div class="detail-container" v-if="currentImage">
+          <!-- 左侧：大图展示 -->
+          <div class="detail-image-wrapper">
+            <el-image
+              :src="currentImage.url"
+              :alt="currentImage.filename"
+              fit="contain"
+              class="detail-image"
+              :preview-src-list="[currentImage.url]"
             />
           </div>
 
-          <!-- 悬停显示信息 -->
-          <div class="image-overlay">
-            <div class="image-info">
-              <div class="image-name">{{ image.filename }}</div>
-              <div class="image-meta">
-                <span>{{ formatFileSize(image.fileSize) }}</span>
-                <span v-if="image.tags && image.tags.length > 0">
-                  <el-tag size="small" type="info" effect="dark" class="count-tag">
-                    {{ image.tags.length }} 标签
-                  </el-tag>
-                </span>
+          <!-- 右侧：编辑表单 -->
+          <div class="detail-form-wrapper">
+            <el-form :model="editingForm" label-position="top">
+              <el-form-item label="图片名称">
+                <el-input v-model="editingForm.filename" placeholder="请输入图片名称" />
+              </el-form-item>
+
+              <el-form-item label="描述">
+                <el-input
+                  v-model="editingForm.description"
+                  type="textarea"
+                  rows="4"
+                  placeholder="请输入图片描述"
+                />
+              </el-form-item>
+
+              <el-form-item label="标签">
+                <el-select
+                  v-model="editingForm.tags"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  placeholder="请选择或输入标签"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="tag in availableTags"
+                    :key="tag.id"
+                    :label="tag.name"
+                    :value="tag.name"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item label="相册">
+                <el-select
+                  v-model="editingForm.albumIds"
+                  multiple
+                  filterable
+                  placeholder="请选择相册"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="album in availableAlbums"
+                    :key="album.id"
+                    :label="album.name"
+                    :value="album.id"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <div class="form-meta-info">
+                <p><strong>文件大小：</strong>{{ formatFileSize(currentImage.fileSize) }}</p>
+                <p><strong>上传时间：</strong>{{ new Date(currentImage.uploadTime).toLocaleString() }}</p>
+                <p v-if="currentImage.width"><strong>分辨率：</strong>{{ currentImage.width }} x {{ currentImage.height }}</p>
               </div>
+            </el-form>
+          </div>
+        </div>
+        <template #footer>
+          <span class="dialog-footer">
+            <div class="left-actions">
+              <el-button type="primary" @click="openInFolderFromDialog" :icon="Folder">在文件夹中打开</el-button>
+              <el-button type="danger" @click="handleDeleteFromDialog" :icon="Delete">删除图片</el-button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 空状态 -->
-      <el-empty v-else description="暂无图片" />
-    </div>
-
-    <!-- 分页 -->
-    <div class="pagination-container" v-if="total > 0">
-      <el-pagination
-        v-model:current-page="page"
-        v-model:page-size="limit"
-        :page-sizes="[20, 50, 100, 200]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="total"
-        @size-change="handleSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
-
-    <!-- 图片大图预览和编辑模态框 -->
-    <el-dialog
-      v-model="detailDialogVisible"
-      title="图片详情"
-      width="80%"
-      top="5vh"
-      destroy-on-close
-      class="image-detail-dialog"
-    >
-      <div class="detail-container" v-if="currentImage">
-        <!-- 左侧：大图展示 -->
-        <div class="detail-image-wrapper">
-          <el-image
-            :src="currentImage.url"
-            :alt="currentImage.filename"
-            fit="contain"
-            class="detail-image"
-            :preview-src-list="[currentImage.url]"
-          />
-        </div>
-
-        <!-- 右侧：编辑表单 -->
-        <div class="detail-form-wrapper">
-          <el-form :model="editingForm" label-position="top">
-            <el-form-item label="图片名称">
-              <el-input v-model="editingForm.filename" placeholder="请输入图片名称" />
-            </el-form-item>
-
-            <el-form-item label="描述">
-              <el-input
-                v-model="editingForm.description"
-                type="textarea"
-                rows="4"
-                placeholder="请输入图片描述"
-              />
-            </el-form-item>
-
-            <el-form-item label="标签">
-              <el-select
-                v-model="editingForm.tags"
-                multiple
-                filterable
-                allow-create
-                default-first-option
-                placeholder="请选择或输入标签"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="tag in availableTags"
-                  :key="tag.id"
-                  :label="tag.name"
-                  :value="tag.name"
-                />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="相册">
-              <el-select
-                v-model="editingForm.albumIds"
-                multiple
-                filterable
-                placeholder="请选择相册"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="album in availableAlbums"
-                  :key="album.id"
-                  :label="album.name"
-                  :value="album.id"
-                />
-              </el-select>
-            </el-form-item>
-
-            <div class="form-meta-info">
-              <p><strong>文件大小：</strong>{{ formatFileSize(currentImage.fileSize) }}</p>
-              <p><strong>上传时间：</strong>{{ new Date(currentImage.uploadTime).toLocaleString() }}</p>
-              <p v-if="currentImage.width"><strong>分辨率：</strong>{{ currentImage.width }} x {{ currentImage.height }}</p>
+            <div class="right-actions">
+              <el-button @click="detailDialogVisible = false">取消</el-button>
+              <el-button type="primary" @click="saveImageInfo" :loading="saving">保存修改</el-button>
             </div>
-          </el-form>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <div class="left-actions">
-            <el-button type="primary" @click="openInFolderFromDialog" :icon="Folder">在文件夹中打开</el-button>
-            <el-button type="danger" @click="handleDeleteFromDialog" :icon="Delete">删除图片</el-button>
-          </div>
-          <div class="right-actions">
-            <el-button @click="detailDialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="saveImageInfo" :loading="saving">保存修改</el-button>
-          </div>
-        </span>
-      </template>
-    </el-dialog>
+          </span>
+        </template>
+      </el-dialog>
+    </main>
   </div>
 </template>
 
@@ -361,6 +406,11 @@ const handleTagChange = () => {
 const handleSortChange = () => {
   page.value = 1
   fetchImages()
+}
+
+const toggleSortOrder = () => {
+  sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
+  handleSortChange()
 }
 
 const handleSizeChange = (val: number) => {
@@ -624,199 +674,365 @@ const openInFolder = async (image: ImageInfo) => {
 </script>
 
 <style scoped lang="scss">
-@use '@/assets/scss/variables.scss' as *;
+:root {
+  --sidebar-bg: rgba(246, 246, 246, 0.75);
+  --main-bg: #ffffff;
+  --accent-blue: #007aff;
+  --accent-red: #ff3b30;
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --border-color: rgba(0, 0, 0, 0.1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
 
 .all-gallery-view {
-  padding: 1.5rem;
+  background-color: #f5f5f7;
+  color: var(--text-primary);
   height: 100vh;
-  background-color: #f5f7fa;
-  position: relative;
   display: flex;
-  flex-direction: column;
   overflow: hidden;
-  box-sizing: border-box;
-
-  @media (min-width: 768px) {
-    padding: 2rem;
-  }
 }
 
-.filter-bar {
-  background: white;
-  padding: 1rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-  margin-bottom: 1.5rem;
+/* --- 侧边栏 --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--sidebar-bg);
+  backdrop-filter: blur(30px) saturate(180%);
+  border-right: 0.5px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  padding: 40px 16px 20px;
+  z-index: 10;
   flex-shrink: 0;
-
-  @media (min-width: 768px) {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .left-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    flex: 1;
-
-    .search-input {
-      width: 100%;
-      @media (min-width: 768px) {
-        width: 300px;
-      }
-    }
-
-    .tag-select {
-      width: 100%;
-      @media (min-width: 768px) {
-        width: 240px;
-      }
-    }
-  }
-
-  .right-filters {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-
-    .sort-select {
-      width: 120px;
-    }
-  }
 }
 
-.gallery-content {
+.sidebar-header {
+  padding-left: 12px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nav-item i {
+  width: 20px;
+  color: var(--accent-blue);
+  font-size: 16px;
+  text-align: center;
+}
+
+.nav-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.nav-item.active {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* --- 主内容区 --- */
+main {
+  flex: 1;
+  background-color: var(--main-bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+}
+
+header {
+  height: 60px;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.search-wrapper {
+  position: relative;
+  width: 380px;
+}
+
+.search-wrapper i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.search-input {
+  width: 100%;
+  background-color: #f2f2f7;
+  border: none;
+  padding: 8px 12px 8px 36px;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.text-btn {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.text-btn:hover {
+  background-color: rgba(0, 122, 255, 0.1);
+}
+
+.scroll-content {
   flex: 1;
   overflow-y: auto;
-  min-height: 0;
-  padding: 4px; /* 防止阴影被裁剪 */
+  padding: 10px 40px 100px;
 }
 
-.image-grid {
+/* --- 标题栏 --- */
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 12px;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--accent-blue);
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.title-divider {
+  height: 0.5px;
+  background-color: var(--border-color);
+  margin-bottom: 24px;
+}
+
+/* --- 标签筛选 --- */
+.tag-filter {
+  margin-bottom: 24px;
+}
+
+/* --- 照片网格 --- */
+.photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
-
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1.5rem;
-  }
+  gap: 16px;
 }
 
-.image-item {
+.photo-card {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
+  background-color: #f5f5f7;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
-  background-color: white;
+  transition: transform 0.2s ease, opacity 0.3s ease;
+}
 
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+.gallery-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.5s;
+}
 
-    .image-overlay {
-      opacity: 1;
-    }
+.photo-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 
-    .image-actions {
-      opacity: 1;
-    }
-
-    .gallery-image {
-      transform: scale(1.05);
-    }
-  }
-
-  .gallery-image {
-    width: 100%;
-    height: 100%;
-    display: block;
-    transition: transform 0.5s;
+  .image-overlay {
+    opacity: 1;
   }
 
   .image-actions {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    z-index: 10;
-  }
-  .select-checkbox {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    z-index: 11;
-    background: rgba(255,255,255,0.85);
-    border-radius: 4px;
-    padding: 2px 6px;
+    opacity: 1;
   }
 
-.image-item.selected {
-  outline: 2px solid #409EFF;
+  .gallery-image {
+    transform: scale(1.05);
+  }
 }
 
-  .image-placeholder, .image-error {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: #f0f2f5;
-    color: #909399;
-    font-size: 24px;
-  }
+/* 选择态 */
+.selecting .photo-card {
+  transform: scale(0.92);
+}
 
-  .image-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-    padding: 2rem 1rem 1rem;
-    opacity: 0;
-    transition: opacity 0.3s;
-    color: white;
+.select-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid white;
+  background: rgba(0, 0, 0, 0.2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+  z-index: 10;
+}
 
-    .image-info {
-      .image-name {
-        font-weight: 500;
-        margin-bottom: 0.25rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+.selecting .select-overlay {
+  display: flex;
+}
 
-      .image-meta {
-        font-size: 0.75rem;
-        opacity: 0.8;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
+.photo-card.selected .select-overlay {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.image-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+
+.image-placeholder, .image-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f0f2f5;
+  color: #909399;
+  font-size: 24px;
+}
+
+.image-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  padding: 2rem 1rem 1rem;
+  opacity: 0;
+  transition: opacity 0.3s;
+  color: white;
+
+  .image-info {
+    .image-name {
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .image-meta {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
   }
 }
 
+/* --- 底部工具栏 --- */
+.bottom-toolbar {
+  position: absolute;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 400px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--border-color);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100;
+}
+
+.bottom-toolbar.active {
+  bottom: 30px;
+}
+
+.toolbar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-blue);
+  cursor: pointer;
+  padding: 8px 16px;
+}
+
+.toolbar-item span {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* --- 分页 --- */
 .pagination-container {
   display: flex;
   justify-content: center;
   padding: 1rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   margin-top: 1rem;
   flex-shrink: 0;
 }
 
+/* --- 图片详情对话框 --- */
 .image-detail-dialog {
   .detail-container {
     display: flex;
