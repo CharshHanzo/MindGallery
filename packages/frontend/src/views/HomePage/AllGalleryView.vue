@@ -110,6 +110,14 @@
 
           <div class="image-actions" @click.stop>
             <el-button
+              type="primary"
+              circle
+              size="small"
+              :icon="Folder"
+              @click="openInFolder(image)"
+              title="在文件夹中打开"
+            />
+            <el-button
               type="danger"
               circle
               size="small"
@@ -251,7 +259,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue'
-import { Search, SortUp, SortDown, Picture, Loading, Delete } from '@element-plus/icons-vue'
+import { Search, SortUp, SortDown, Picture, Loading, Delete, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
@@ -387,9 +395,27 @@ const extToMime: Record<string, string> = {
   '.heif': 'image/heif'
 }
 const urlToWindowsPath = (fileUrl: string) => {
+  // 处理 file:/// 格式的URL
   const withoutScheme = fileUrl.replace(/^file:\/\//, '')
   const decoded = decodeURI(withoutScheme)
-  const winPath = decoded.replace(/^\//, '').replace(/\//g, '\\')
+
+  // 如果是Windows绝对路径（如 file:///E:/path/to/image.jpg）
+  // 转换后应该是 E:\\path\\to\\image.jpg
+  if (decoded.match(/^[a-zA-Z]:\//)) {
+    // 直接转换斜杠为反斜杠，保留盘符
+    const winPath = decoded.replace(/\//g, '\\')
+    return winPath
+  }
+
+  // 如果是Unix风格的绝对路径（如 file:///path/to/image.jpg）
+  if (decoded.startsWith('/')) {
+    // 移除开头的斜杠，然后转换
+    const winPath = decoded.replace(/^\//, '').replace(/\//g, '\\')
+    return winPath
+  }
+
+  // 其他情况直接转换
+  const winPath = decoded.replace(/\//g, '\\')
   return winPath
 }
 const buildBlobUrlsForImages = async () => {
@@ -399,7 +425,7 @@ const buildBlobUrlsForImages = async () => {
       const buffer = await universalApi.readFileBuffer(winPath)
       const ext = (img.filename.split('.').pop() || '').toLowerCase()
       const mime = extToMime['.' + ext] || 'image/*'
-      const blob = new Blob([buffer], { type: mime })
+      const blob = new Blob([buffer as any], { type: mime })
       const blobUrl = URL.createObjectURL(blob)
       createdBlobUrls.value.push(blobUrl)
       images.value[idx] = { ...img, url: blobUrl, thumbnailUrl: blobUrl }
@@ -565,6 +591,53 @@ const handleDeleteFromDialog = () => {
   }).catch(() => {
     // 取消删除
   })
+}
+
+// 在文件夹中打开图片
+const openInFolder = async (image: ImageInfo) => {
+  if (!isElectron) {
+    ElMessage.error('此功能仅在桌面应用中可用')
+    return
+  }
+
+  try {
+    console.log('原始图片URL:', image.url)
+    console.log('图片对象:', image)
+
+    // 检查是否是 blob URL
+    if (image.url.startsWith('blob:')) {
+      console.error('错误：不能使用 blob URL 打开文件管理器')
+
+      // 检查是否有原始文件路径
+      if ((image as any).filePath) {
+        console.log('使用原始文件路径:', (image as any).filePath)
+        await universalApi.openFileManager((image as any).filePath)
+      } else {
+        // 如果没有原始路径，尝试从 blob URL 回退到 file:// URL
+        // 这需要重新构建 file:// URL
+        console.log('尝试从 blob URL 回退到 file:// URL')
+
+        // 如果图片有 filename，可以尝试构建路径（但可能不准确）
+        ElMessage.error('无法打开 blob URL 对应的文件，请刷新页面后重试')
+        return
+      }
+    } else {
+      // 如果是 file:// URL，直接使用
+      console.log('使用 file:// URL')
+
+      // 将URL转换为Windows路径
+      const winPath = urlToWindowsPath(image.url)
+      console.log('转换后的Windows路径:', winPath)
+
+      // 调用打开文件管理器的API
+      await universalApi.openFileManager(winPath)
+    }
+
+    ElMessage.success('已打开文件所在文件夹')
+  } catch (error) {
+    console.error('打开文件夹失败:', error)
+    ElMessage.error('打开文件夹失败，请检查文件是否存在')
+  }
 }
 </script>
 

@@ -48,6 +48,7 @@ export const IPC_CHANNELS = {
     UPLOAD_FILE: 'fs:upload:file',
     UPLOAD_FILES: 'fs:upload:files',
     ON_UPLOAD_PROGRESS: 'fs:upload:on-progress',
+    OPEN_FILE_MANAGER: 'fs:open-file-manager',
   },
   BACKEND: {
     START: 'backend:start',
@@ -99,6 +100,7 @@ export interface ElectronAPI {
   readDirectory: (path: string) => Promise<FileInfo[]>;
   getFileInfo: (path: string) => Promise<FileInfo>;
   readFileBuffer: (path: string) => Promise<Uint8Array>;
+  openFileManager: (filePath: string) => Promise<boolean>;
   onScanProgress: (callback: ScanProgressCallback) => () => void;
 
   // Upload

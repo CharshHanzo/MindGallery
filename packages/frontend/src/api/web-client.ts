@@ -59,6 +59,11 @@ export const webClient: ElectronAPI = {
     return new Uint8Array();
   },
 
+  openFileManager: async (filePath: string): Promise<boolean> => {
+    console.warn(`Web mode: Cannot open file manager for ${filePath}`);
+    return false;
+  },
+
   onScanProgress: (callback: ScanProgressCallback) => {
     console.log('Web mode: Scan progress listener registered');
     return () => {}; // No-op cleanup

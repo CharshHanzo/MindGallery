@@ -53,6 +53,14 @@ export const electronClient: ElectronAPI = {
     throw new Error(res.error || 'Failed to read file buffer');
   },
 
+  openFileManager: async (filePath: string): Promise<boolean> => {
+    const res = await ensureElectron().openFileManager(filePath) as unknown as IpcResponse<boolean>;
+    if (res.success) {
+      return res.data || false;
+    }
+    throw new Error(res.error || 'Failed to open file manager');
+  },
+
   onScanProgress: (callback: ScanProgressCallback): (() => void) => {
     return ensureElectron().onScanProgress(callback);
   },

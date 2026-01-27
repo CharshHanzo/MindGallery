@@ -223,24 +223,25 @@ export const getImageList = async (params?: {
     };
 
     const data = result.items.map(item => {
-      const normalizedPath = item.filePath.replace(/\\/g, '/');
-      const url = `file:///${normalizedPath}`;
-      return {
-        id: item.id,
-        filename: item.fileName,
-        url,
-        thumbnailUrl: url,
-        fileSize: item.fileSize,
-        uploadTime: new Date(item.createdAt).toISOString(),
-        tags: [],
-        title: undefined,
-        description: undefined,
-        width: item.width,
-        height: item.height,
-        takenTime: undefined,
-        albums: []
-      };
-    });
+  const normalizedPath = item.filePath.replace(/\\/g, '/');
+  const url = `file:///${normalizedPath}`;
+  return {
+    id: item.id,
+    filename: item.fileName,
+    url,
+    thumbnailUrl: url,
+    filePath: item.filePath, // 添加原始文件路径
+    fileSize: item.fileSize,
+    uploadTime: new Date(item.createdAt).toISOString(),
+    tags: [],
+    title: undefined,
+    description: undefined,
+    width: item.width,
+    height: item.height,
+    takenTime: undefined,
+    albums: []
+  };
+});
 
     return {
       success: true,

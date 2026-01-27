@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFileInfo: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FS.GET_FILE_INFO, path),
 
   readFileBuffer: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FS.READ_FILE_BUFFER, path),
+
+  openFileManager: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FS.OPEN_FILE_MANAGER, filePath),
   
   onScanProgress: (callback: ScanProgressCallback) => {
     const subscription = (event: any, progress: any) => callback(progress);

@@ -6,6 +6,7 @@ export interface ImageInfo {
   filename: string;
   url: string;
   thumbnailUrl: string;
+  filePath?: string; // 文件系统中的真实路径（可选）
   fileSize: number;
   uploadTime: string;
   tags: string[];

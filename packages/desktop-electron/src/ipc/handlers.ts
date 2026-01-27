@@ -1,10 +1,11 @@
-import { ipcMain, dialog, app, BrowserWindow } from 'electron';
+import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron';
 import fs from 'fs/promises';
 import { statSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { IPC_CHANNELS, IpcResponse, FileInfo, SystemInfo, ServiceStatus } from './types';
+import { processFilePath } from '../utils/path-utils';
 import { httpUploader } from '../services/http-uploader';
 
 // Service Manager Class
@@ -254,6 +255,53 @@ export const registerHandlers = (getMainWindow: () => BrowserWindow | null) => {
       const filePath = validateAndSanitizePath(rawPath);
       const buffer = await fs.readFile(filePath);
       return buffer;
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.FS.OPEN_FILE_MANAGER, async (event, rawPath: string) => {
+    return handleIpc(async () => {
+      console.log('收到打开文件管理器请求，原始路径:', rawPath);
+      
+      // 使用新的路径处理函数
+      const filePath = processFilePath(rawPath);
+      
+      console.log('处理后的绝对路径:', filePath);
+      
+      // 验证路径是否为绝对路径
+      if (!path.isAbsolute(filePath)) {
+        console.error('路径不是绝对路径:', filePath);
+        throw new Error(`路径必须是绝对路径，当前路径: ${filePath}`);
+      }
+      
+      // 检查文件是否存在
+      try {
+        await fs.access(filePath);
+        console.log('文件存在:', filePath);
+      } catch (error) {
+        console.error('文件不存在或无法访问:', error);
+        throw new Error(`文件不存在: ${filePath}`);
+      }
+      
+      // 跨平台打开文件管理器并选中文件
+      console.log('准备打开文件管理器，平台:', process.platform);
+      
+      // 检查shell模块是否可用
+      if (!shell.showItemInFolder) {
+        throw new Error('shell.showItemInFolder 方法不可用');
+      }
+      
+      try {
+        const result = await shell.showItemInFolder(filePath);
+        console.log('打开文件管理器成功，结果:', result);
+        return true;
+      } catch (error) {
+        console.error('打开文件管理器失败:', error);
+        
+        // 降级方案：打开所在文件夹
+        const dir = path.dirname(filePath);
+        await shell.openPath(dir);
+        return true;
+      }
     });
   });
 
