@@ -211,16 +211,67 @@ const toggleSelectionMode = () => {
             transform: translateY(-50%);
             color: var(--text-secondary);
             font-size: 14px;
+            z-index: 1;
           }
 
           .search-input {
-            width: 100%;
-            background-color: #f2f2f7;
-            border: none;
-            padding: 8px 12px 8px 36px;
-            border-radius: 10px;
-            font-size: 14px;
-            outline: none;
+            width: 100% !important;
+            background-color: #f2f2f7 !important;
+            border: none !important;
+            padding: 8px 12px 8px 0 !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            outline: none !important;
+            box-shadow: none !important;
+            height: auto !important;
+            line-height: normal !important;
+            transition: none !important;
+          }
+
+          .search-input:hover,
+          .search-input:focus {
+            background-color: #f2f2f7 !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+          }
+
+          /* 覆盖 Element Plus 输入框样式 */
+          :deep(.el-input__wrapper) {
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+          }
+
+          :deep(.el-input__inner) {
+            background-color: #f2f2f7 !important;
+            border: none !important;
+            padding: 8px 12px 8px 36px !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            outline: none !important;
+            box-shadow: none !important;
+            height: auto !important;
+            line-height: normal !important;
+          }
+
+          :deep(.el-input__inner:hover),
+          :deep(.el-input__inner:focus) {
+            background-color: #f2f2f7 !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+          }
+
+          /* 覆盖清除按钮样式 */
+          :deep(.el-input__clear) {
+            color: var(--text-secondary) !important;
+            font-size: 14px !important;
+          }
+
+          :deep(.el-input__clear:hover) {
+            color: var(--text-primary) !important;
           }
         }
 
