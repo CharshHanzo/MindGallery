@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, provide } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -21,6 +21,14 @@ const toggleSelectionMode = () => {
   // 选择模式状态将由子组件处理
   console.log('选择模式:', selectionMode.value)
 }
+
+// 提供共享状态给子组件
+provide('searchState', {
+  searchQuery,
+  handleSearch,
+  selectionMode,
+  toggleSelectionMode
+})
 </script>
 
 <template>

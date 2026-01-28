@@ -239,14 +239,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue'
-import { Search, SortUp, SortDown, Picture, Loading, Delete, Folder } from '@element-plus/icons-vue'
+import { ref, onMounted, reactive, inject, watch } from 'vue'
+import { Picture, Loading, Delete, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
 import { getTagList } from '@/api/modules/tag'
 import { getAlbumList } from '@/api/modules/album'
 import { universalApi } from '@/api'
+
+// 注入共享状态
+interface SearchState {
+  searchQuery: ReturnType<typeof ref<string>>
+  selectionMode: ReturnType<typeof ref<boolean>>
+  toggleSelectionMode: () => void
+}
+
+const searchState = inject<SearchState | undefined>('searchState')
+const searchQuery = searchState?.searchQuery || ref('')
+const selectionMode = searchState?.selectionMode || ref(false)
+const toggleSelectionMode = searchState?.toggleSelectionMode || (() => {})
 
 // 状态
 const loading = ref(false)
@@ -255,7 +267,6 @@ const images = ref<ImageInfo[]>([])
 const total = ref(0)
 const page = ref(1)
 const limit = ref(50)
-const searchQuery = ref('')
 const selectedTags = ref<string[]>([])
 const sortBy = ref('uploadTime')
 const sortOrder = ref<'asc' | 'desc'>('desc')
@@ -271,6 +282,25 @@ const editingForm = reactive({
   tags: [] as string[],
   albumIds: [] as string[]
 })
+
+// 防抖计时器
+let debounceTimer: number | null = null
+
+// 监听搜索参数变化
+watch(searchQuery, (newQuery) => {
+  if (newQuery !== undefined) {
+    // 清除之前的防抖计时器
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+
+    // 设置新的防抖计时器，300ms 后执行搜索
+    debounceTimer = window.setTimeout(() => {
+      page.value = 1
+      fetchImages()
+    }, 300)
+  }
+}, { immediate: false })
 
 // 初始化
 onMounted(async () => {
@@ -336,11 +366,6 @@ const fetchAlbums = async () => {
 }
 
 // 事件处理
-const handleSearch = () => {
-  page.value = 1
-  fetchImages()
-}
-
 const handleTagChange = () => {
   page.value = 1
   fetchImages()
@@ -367,7 +392,7 @@ const handlePageChange = (val: number) => {
   fetchImages()
 }
 
-const isElectron = !!(window as any).electronAPI
+const isElectron = !!(window as unknown as { electronAPI?: unknown }).electronAPI
 const createdBlobUrls = ref<string[]>([])
 const extToMime: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -415,7 +440,7 @@ const buildBlobUrlsForImages = async () => {
       const blobUrl = URL.createObjectURL(blob)
       createdBlobUrls.value.push(blobUrl)
       images.value[idx] = { ...img, url: blobUrl, thumbnailUrl: blobUrl }
-    } catch (e) {
+    } catch {
       // 忽略单个失败，继续其他
     }
   })
@@ -426,25 +451,13 @@ const revokeBlobUrls = () => {
   createdBlobUrls.value = []
 }
 
-const selectionMode = ref(false)
 const selectedIds = ref<Set<string>>(new Set())
-const selectedCount = computed(() => selectedIds.value.size)
-const toggleSelectionMode = () => {
-  selectionMode.value = !selectionMode.value
-  selectedIds.value = new Set()
-}
 const isSelected = (id: string) => selectedIds.value.has(id)
 const toggleSelect = (id: string) => {
   const s = new Set(selectedIds.value)
   if (s.has(id)) s.delete(id)
   else s.add(id)
   selectedIds.value = s
-}
-const selectAll = () => {
-  selectedIds.value = new Set(images.value.map(i => i.id))
-}
-const clearSelection = () => {
-  selectedIds.value = new Set()
 }
 const deleteSelected = async () => {
   if (selectedIds.value.size === 0) return
@@ -466,7 +479,9 @@ const deleteSelected = async () => {
     toggleSelectionMode()
     revokeBlobUrls()
     await fetchImages()
-  } catch (e) {}
+  } catch {
+    // 忽略取消操作
+  }
 }
 
 // 预览图片
@@ -597,8 +612,8 @@ const openInFolder = async (image: ImageInfo) => {
     // 检查是否是 blob URL
     if (image.url.startsWith('blob:')) {
       // 检查是否有原始文件路径
-      if ((image as any).filePath) {
-        await universalApi.openFileManager((image as any).filePath)
+      if ((image as { filePath?: string }).filePath) {
+        await universalApi.openFileManager((image as { filePath: string }).filePath)
       } else {
         // 如果没有原始路径，显示错误信息
         ElMessage.error('无法打开该文件，请刷新页面后重试')
