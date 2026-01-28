@@ -1,559 +1,294 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// 标签数据
-const tabs = ref([
-  { id: 'allGallery', name: '全部图库', path: '/allGallery', active: true },
-  { id: 'myAlbums', name: '我的影集', path: '/myAlbums', active: false },
-  { id: 'memoryMap', name: '足迹地图', path: '/memoryMap', active: false }
-])
+// 共享 UI 状态
+const searchQuery = ref('')
+const selectionMode = ref(false)
 
-// 当前激活的标签
-const activeTab = ref('allGallery')
-
-// 滚动状态
-const isScrolled = ref(false)
-const scrollThreshold = 200 // 背景图高度阈值
-
-// 切换标签
-const changeTab = (tabId: string, path: string) => {
-  // 更新所有标签的 active 状态
-  tabs.value.forEach(tab => {
-    tab.active = tab.id === tabId
-  })
-
-  // 更新当前激活的标签
-  activeTab.value = tabId
-
-  // 路由跳转
-  router.push(path)
+// 搜索处理
+const handleSearch = () => {
+  // 搜索逻辑将由子组件处理
+  // 这里可以通过事件或状态管理传递搜索参数
+  console.log('搜索:', searchQuery.value)
 }
 
-// 处理滚动事件
-const handleScroll = () => {
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-  isScrolled.value = scrollTop > scrollThreshold
+// 切换选择模式
+const toggleSelectionMode = () => {
+  selectionMode.value = !selectionMode.value
+  // 选择模式状态将由子组件处理
+  console.log('选择模式:', selectionMode.value)
 }
-
-// 类型安全的防抖函数
-const debounce = <T extends (...args: unknown[]) => void>(
-  func: T,
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: ReturnType<typeof setTimeout> | null = null
-
-  return (...args: Parameters<T>) => {
-    if (timeout) {
-      clearTimeout(timeout)
-    }
-
-    timeout = setTimeout(() => {
-      func(...args)
-    }, wait)
-  }
-}
-
-// 防抖的滚动处理
-const debouncedScroll = debounce(handleScroll, 10)
-
-onMounted(() => {
-  window.addEventListener('scroll', debouncedScroll)
-  // 初始检查一次
-  handleScroll()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', debouncedScroll)
-})
 </script>
 
 <template>
   <div class="moments-view">
-    <!-- 顶部背景图和用户信息 -->
-    <div class="profile-header">
-      <div class="cover-image">
-        <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
-             alt="封面背景" class="cover-img" />
-        <div class="cover-overlay"></div>
-      </div>
-      <div class="action-btn" :class="{ 'scrolled': isScrolled }">
-        <el-icon @click="router.push('/setting')"><Setting /></el-icon>
-      </div>
-      <div class="user-info">
-        <div class="avatar-container">
-          <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80"
-               alt="用户头像" class="user-avatar" />
-          <div class="avatar-frame"></div>
-        </div>
-        <div class="user-details">
-          <h2 class="username">MindGallery 用户</h2>
-          <p class="user-bio">分享生活中的美好瞬间</p>
-          <div class="stats">
-            <span class="stat-item">
-              <strong>128</strong> 照片
-            </span>
-            <span class="stat-item">
-              <strong>36</strong> 相册
-            </span>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">Photos</div>
+      <nav class="nav-group">
+        <router-link to="/allGallery" class="nav-item" active-class="active">
+          <el-icon><House /></el-icon>
+          <span>所有照片</span>
+        </router-link>
+        <a href="#" class="nav-item">
+          <el-icon><Clock /></el-icon>
+          <span>最近添加</span>
+        </a>
+        <a href="#" class="nav-item">
+          <el-icon><Star /></el-icon>
+          <span>个人收藏</span>
+        </a>
+      </nav>
+      <div class="sidebar-header" style="margin-top: 30px">Library</div>
+      <nav class="nav-group">
+        <router-link to="/myAlbums" class="nav-item" active-class="active">
+          <el-icon><Collection /></el-icon>
+          <span>相册</span>
+        </router-link>
+        <router-link to="/memoryMap" class="nav-item" active-class="active">
+          <el-icon><Location /></el-icon>
+          <span>地点</span>
+        </router-link>
+        <a href="#" class="nav-item">
+          <el-icon><UserFilled /></el-icon>
+          <span>人物</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main>
+      <!-- 照片墙部分 -->
+      <div class="moments-content">
+        <!-- 共享头部 -->
+        <div class="content-header">
+          <div class="search-wrapper">
+            <el-icon class="search-icon"><Search /></el-icon>
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索照片..."
+              class="search-input"
+              clearable
+              @keyup.enter="handleSearch"
+              @clear="handleSearch"
+            >
+            </el-input>
+          </div>
+          <div class="header-actions">
+            <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;" @click="router.push('/upload')">
+              <el-icon><Plus /></el-icon>
+            </div>
+            <el-button class="text-btn" @click="toggleSelectionMode">
+              {{ selectionMode ? '取消' : '选择' }}
+            </el-button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- 照片墙部分 -->
-    <div class="moments-content">
-      <div class="content-header">
-        <div class="tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            class="tab"
-            :class="{ active: tab.active }"
-            @click="changeTab(tab.id, tab.path)"
-          >
-            {{ tab.name }}
-          </button>
-        </div>
-
-        <div class="actions">
-          <el-button type="primary" round @click="router.push('/upload')">
-            <el-icon class="el-icon--left"><Plus /></el-icon>上传照片
-          </el-button>
+        <!-- 动态内容区 -->
+        <div class="content-body">
+          <router-view />
         </div>
       </div>
-      <div class="content-body">
-        <router-view />
-      </div>
-    </div>
+    </main>
   </div>
 </template>
 
 <style lang="scss" scoped>
+:root {
+  --sidebar-bg: rgba(246, 246, 246, 0.75);
+  --main-bg: #ffffff;
+  --accent-blue: #007aff;
+  --accent-red: #ff3b30;
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --border-color: rgba(0, 0, 0, 0.1);
+}
+
 .moments-view {
-  min-height: 100vh;
-  background: linear-gradient(135deg, $winter-sky-1 0%, $winter-sky-2 100%);
+  height: 100vh;
+  background: var(--main-bg);
   display: flex;
-  flex-direction: column;
-  // 顶部背景图和用户信息
-  .profile-header {
-    position: relative;
-    height: 300px;
+  overflow: hidden;
+  position: relative;
 
-    .cover-image {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+  // 侧边栏
+  .sidebar {
+    width: 260px;
+    background-color: var(--sidebar-bg);
+    backdrop-filter: blur(30px) saturate(180%);
+    border-right: 0.5px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px 20px;
+    z-index: 10;
+    flex-shrink: 0;
+    overflow-y: auto;
 
-      .cover-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        filter: brightness(0.9);
-      }
-
-      .cover-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        // background: linear-gradient(to bottom, rgba($winter-sky-5, 0.4), rgba($winter-sky-3, 0.2));
-      }
+    .sidebar-header {
+      padding-left: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
     }
 
-    .action-btn {
-      color: white;
-      font-size: 2rem;
-      position: fixed;
-      top: 20px;
-      right: 20px;
+    .nav-group {
       display: flex;
-      gap: 10px;
-      z-index: 1000;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      padding: 8px;
-      border-radius: 8px;
+      flex-direction: column;
+      gap: 2px;
 
-      &.scrolled {
-        background: rgba($winter-sky-5, 0.9);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 12px rgba($winter-sky-5, 0.3);
+      .nav-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          text-decoration: none;
+          color: var(--text-primary);
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
 
-        .el-icon {
-          color: white;
+          el-icon {
+            width: 20px;
+            color: var(--accent-blue);
+            font-size: 16px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
 
           &:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background-color: rgba(0, 0, 0, 0.05);
+          }
+
+          &.active {
+            background-color: rgba(0, 0, 0, 0.08);
           }
         }
-      }
-
-      .el-icon {
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        transition: all 0.3s ease;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.2);
-          transform: scale(1.1);
-        }
-      }
-    }
-
-    .user-info {
-      position: absolute;
-      bottom: -60px;
-      left: 20px;
-      right: 20px;
-      display: flex;
-      align-items: flex-end;
-      gap: 20px;
-
-      .avatar-container {
-        position: relative;
-
-        .user-avatar {
-          width: 120px;
-          height: 120px;
-          border-radius: 8px;
-          object-fit: cover;
-          border: 4px solid white;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .avatar-frame {
-          position: absolute;
-          top: -4px;
-          left: -4px;
-          right: -4px;
-          bottom: -4px;
-          border: 2px solid rgba(255, 255, 255, 0.8);
-          border-radius: 12px;
-          pointer-events: none;
-        }
-      }
-
-      .user-details {
-        flex: 1;
-        color: white;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-        margin-bottom: 10px;
-
-        .username {
-          font-size: 24px;
-          font-weight: 600;
-          margin-bottom: 8px;
-        }
-
-        .user-bio {
-          font-size: 14px;
-          opacity: 0.9;
-          margin-bottom: 12px;
-        }
-
-        .stats {
-          display: flex;
-          gap: 20px;
-
-          .stat-item {
-            font-size: 13px;
-            opacity: 0.8;
-
-            strong {
-              font-weight: 600;
-              opacity: 1;
-            }
-          }
-        }
-      }
     }
   }
 
-  // 照片墙内容区域
-  .moments-content {
+  // 主内容区
+  main {
     flex: 1;
-    margin-top: 75px;
-    margin-left: 20px;
-    margin-right: 20px;
-    margin-bottom: 20px;
-    background: white;
-    border-radius: 12px 12px 12px 12px;
-    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.1);
-    min-height: calc(100vh - 75px);
+    background-color: var(--main-bg);
     display: flex;
     flex-direction: column;
-    .content-header {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+
+    // 照片墙内容区域
+    .moments-content {
+      flex: 1;
+      margin: 0 20px 20px;
+      background: white;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px 20px 0 20px;
-      margin-bottom: 20px;
+      flex-direction: column;
+      overflow: hidden;
 
-      .tabs {
+      .content-header {
         display: flex;
-        gap: 0;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        margin-bottom: 0;
 
-        .tab {
-            padding: 10px 20px;
-            border: none;
-            background: transparent;
-            color: #666;
+        .search-wrapper {
+          position: relative;
+          width: 380px;
+
+          .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
             font-size: 14px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-
-            &::before {
-              content: '';
-              position: absolute;
-              bottom: 0;
-              left: 50%;
-              width: 0;
-              height: 2px;
-              background: $winter-sky-5;
-              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-              transform: translateX(-50%);
-            }
-
-            &.active {
-              color: $winter-sky-5;
-              font-weight: 500;
-
-              &::before {
-                width: 80%;
-              }
-            }
-
-            &:hover:not(.active) {
-              color: #333;
-              transform: translateY(-1px);
-
-              &::before {
-                width: 40%;
-                background: rgba($winter-sky-5, 0.5);
-              }
-            }
           }
-      }
 
-      .actions {
-        .upload-btn {
+          .search-input {
+            width: 100%;
+            background-color: #f2f2f7;
+            border: none;
+            padding: 8px 12px 8px 36px;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+          }
+        }
+
+        .header-actions {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: $winter-sky-5;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.3s ease;
+          gap: 16px;
 
-          &:hover {
-            background: $winter-sky-4;
-            transform: translateY(-1px);
-          }
+          .text-btn {
+            background: none;
+            border: none;
+            color: var(--accent-blue);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
 
-          .icon {
-            font-size: 16px;
+            &:hover {
+              background-color: rgba(0, 122, 255, 0.1);
+            }
           }
         }
       }
-    }
 
-    // 照片网格
-    .photos-grid {
-      flex: 1;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 15px;
-      padding: 0 20px;
-      margin-bottom: 20px;
-
-      .photo-item {
-        position: relative;
-        border-radius: 12px;
+      .content-body {
+        flex: 1;
         overflow: hidden;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
-
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-
-          .photo-overlay {
-            opacity: 1;
-          }
-        }
-
-        .photo-wrapper {
-          position: relative;
-          aspect-ratio: 1;
-
-          .photo-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-          }
-
-          .photo-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 15px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-
-            .photo-actions {
-              display: flex;
-              justify-content: center;
-              gap: 15px;
-
-              .action-btn {
-                width: 36px;
-                height: 36px;
-                border: none;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.9);
-                backdrop-filter: blur(10px);
-                cursor: pointer;
-                transition: all 0.3s ease;
-                font-size: 14px;
-
-                &:hover {
-                  transform: scale(1.1);
-                  background: white;
-                }
-
-                &.like-btn:hover {
-                  color: #ff4757;
-                }
-
-                &.comment-btn:hover {
-                  color: #2ed573;
-                }
-
-                &.share-btn:hover {
-                  color: #3742fa;
-                }
-              }
-            }
-
-            .photo-info {
-              color: white;
-              font-size: 12px;
-              display: flex;
-              justify-content: space-between;
-
-              .photo-date {
-                opacity: 0.9;
-              }
-
-              .photo-likes {
-                font-weight: 500;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 加载更多
-    .load-more {
-      text-align: center;
-      padding: 20px;
-      border-top: 1px solid #f0f0f0;
-
-      .load-more-btn {
-        padding: 12px 30px;
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 6px;
-        color: #666;
-        font-size: 14px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-
-        &:hover {
-          border-color: $winter-sky-5;
-          color: $winter-sky-5;
-          transform: translateY(-1px);
-        }
       }
     }
   }
 
   // 响应式设计
   @media (max-width: 768px) {
-    .profile-header {
-      height: 250px;
+    .sidebar {
+      width: 200px;
+      padding: 20px 12px 10px;
 
-      .user-info {
-        bottom: -50px;
-        left: 15px;
-        right: 15px;
-        gap: 15px;
+      .nav-item {
+        font-size: 13px;
 
-        .avatar-container .user-avatar {
-          width: 100px;
-          height: 100px;
-        }
-
-        .user-details .username {
-          font-size: 20px;
+        i {
+          font-size: 14px;
         }
       }
     }
 
-    .moments-content {
-      margin-top: 80px;
-      min-height: calc(100vh - 80px);
+    main {
+      .moments-content {
+        margin: 10px;
 
-      .content-header {
-        flex-direction: column;
-        gap: 15px;
-        text-align: center;
-        padding: 15px 15px 0 15px;
+        .content-header {
+          flex-direction: column;
+          gap: 15px;
+          text-align: center;
+          padding: 15px 15px 0 15px;
 
-        .tabs {
-          justify-content: center;
+          .tabs {
+            justify-content: center;
+          }
         }
-      }
-
-      .photos-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 10px;
-        padding: 0 15px;
-      }
-
-      .load-more {
-        padding: 15px;
       }
     }
   }
 
   @media (max-width: 480px) {
-    .photos-grid {
-      grid-template-columns: repeat(2, 1fr);
+    .sidebar {
+      width: 180px;
     }
   }
 }

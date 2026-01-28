@@ -1,66 +1,7 @@
 <template>
   <div class="all-gallery-view">
-    <!-- 侧边栏 -->
-    <aside class="sidebar">
-      <div class="sidebar-header">Photos</div>
-      <nav class="nav-group">
-        <a href="#" class="nav-item active">
-          <i class="fa-solid fa-house"></i>
-          <span>所有照片</span>
-        </a>
-        <a href="#" class="nav-item">
-          <i class="fa-solid fa-clock"></i>
-          <span>最近添加</span>
-        </a>
-        <a href="#" class="nav-item">
-          <i class="fa-solid fa-heart"></i>
-          <span>个人收藏</span>
-        </a>
-      </nav>
-      <div class="sidebar-header" style="margin-top: 30px">Library</div>
-      <nav class="nav-group">
-        <a href="#" class="nav-item">
-          <i class="fa-solid fa-rectangle-list"></i>
-          <span>相册</span>
-        </a>
-        <a href="#" class="nav-item">
-          <i class="fa-solid fa-location-dot"></i>
-          <span>地点</span>
-        </a>
-        <a href="#" class="nav-item">
-          <i class="fa-solid fa-user-group"></i>
-          <span>人物</span>
-        </a>
-      </nav>
-    </aside>
-
     <!-- 主内容区 -->
     <main id="main-container" :class="{ selecting: selectionMode }">
-      <!-- 头部 -->
-      <header>
-        <div class="search-wrapper">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索照片..."
-            class="search-input"
-            clearable
-            @keyup.enter="handleSearch"
-            @clear="handleSearch"
-          >
-          </el-input>
-        </div>
-        <div class="header-actions">
-          <input type="file" id="file-input" accept="image/*" multiple style="display: none;" />
-          <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;">
-            <i class="fa-solid fa-circle-plus"></i>
-          </div>
-          <el-button class="text-btn" @click="toggleSelectionMode">
-            {{ selectionMode ? '取消' : '选择' }}
-          </el-button>
-        </div>
-      </header>
-
       <div class="scroll-content">
         <!-- 标题栏 -->
         <div class="title-bar">
@@ -101,66 +42,68 @@
 
         <!-- 图片列表 -->
         <div v-loading="loading" class="gallery-content">
-          <div v-if="images.length > 0" class="photo-grid" id="photo-grid">
-            <div
-              v-for="(image, index) in images"
-              :key="image.id"
-              class="photo-card"
-              :class="{ selected: isSelected(image.id) && selectionMode }"
-              @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
-            >
-              <el-image
-                :src="image.thumbnailUrl || image.url"
-                :alt="image.filename"
-                fit="cover"
-                class="gallery-image"
+          <div class="gallery-scroll-container">
+            <div v-if="images.length > 0" class="photo-grid" id="photo-grid">
+              <div
+                v-for="(image, index) in images"
+                :key="image.id"
+                class="photo-card"
+                :class="{ selected: isSelected(image.id) && selectionMode }"
+                @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
               >
-                <template #placeholder>
-                  <div class="image-placeholder">
-                    <el-icon class="is-loading"><Loading /></el-icon>
-                  </div>
-                </template>
-                <template #error>
-                  <div class="image-error">
-                    <el-icon><Picture /></el-icon>
-                  </div>
-                </template>
-              </el-image>
+                <el-image
+                  :src="image.thumbnailUrl || image.url"
+                  :alt="image.filename"
+                  fit="cover"
+                  class="gallery-image"
+                >
+                  <template #placeholder>
+                    <div class="image-placeholder">
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                    </div>
+                  </template>
+                  <template #error>
+                    <div class="image-error">
+                      <el-icon><Picture /></el-icon>
+                    </div>
+                  </template>
+                </el-image>
 
-              <div class="select-overlay" v-if="selectionMode">
-                <i class="fa-solid fa-check"></i>
-              </div>
+                <div class="select-overlay" v-if="selectionMode">
+                  <i class="fa-solid fa-check"></i>
+                </div>
 
-              <div class="image-actions" @click.stop>
-                <el-button
-                  type="danger"
-                  circle
-                  size="small"
-                  :icon="Delete"
-                  @click="handleDelete(image)"
-                  title="删除图片"
-                />
-              </div>
+                <div class="image-actions" @click.stop>
+                  <el-button
+                    type="danger"
+                    circle
+                    size="small"
+                    :icon="Delete"
+                    @click="handleDelete(image)"
+                    title="删除图片"
+                  />
+                </div>
 
-              <!-- 悬停显示信息 -->
-              <div class="image-overlay">
-                <div class="image-info">
-                  <div class="image-name">{{ image.filename }}</div>
-                  <div class="image-meta">
-                    <span>{{ formatFileSize(image.fileSize) }}</span>
-                    <span v-if="image.tags && image.tags.length > 0">
-                      <el-tag size="small" type="info" effect="dark" class="count-tag">
-                        {{ image.tags.length }} 标签
-                      </el-tag>
-                    </span>
+                <!-- 悬停显示信息 -->
+                <div class="image-overlay">
+                  <div class="image-info">
+                    <div class="image-name">{{ image.filename }}</div>
+                    <div class="image-meta">
+                      <span>{{ formatFileSize(image.fileSize) }}</span>
+                      <span v-if="image.tags && image.tags.length > 0">
+                        <el-tag size="small" type="info" effect="dark" class="count-tag">
+                          {{ image.tags.length }} 标签
+                        </el-tag>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- 空状态 -->
-          <el-empty v-else description="暂无图片" />
+            <!-- 空状态 -->
+            <el-empty v-else description="暂无图片" />
+          </div>
         </div>
 
         <!-- 分页 -->
@@ -692,68 +635,12 @@ const openInFolder = async (image: ImageInfo) => {
 }
 
 .all-gallery-view {
-  background-color: #f5f5f7;
+  background-color: var(--main-bg);
   color: var(--text-primary);
-  height: 100vh;
+  height: 100%;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
-}
-
-/* --- 侧边栏 --- */
-.sidebar {
-  width: 260px;
-  background-color: var(--sidebar-bg);
-  backdrop-filter: blur(30px) saturate(180%);
-  border-right: 0.5px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  padding: 40px 16px 20px;
-  z-index: 10;
-  flex-shrink: 0;
-}
-
-.sidebar-header {
-  padding-left: 12px;
-  margin-bottom: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: -0.01em;
-}
-
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  text-decoration: none;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.nav-item i {
-  width: 20px;
-  color: var(--accent-blue);
-  font-size: 16px;
-  text-align: center;
-}
-
-.nav-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.nav-item.active {
-  background-color: rgba(0, 0, 0, 0.08);
 }
 
 /* --- 主内容区 --- */
@@ -766,63 +653,8 @@ main {
   min-width: 0;
 }
 
-header {
-  height: 60px;
-  padding: 0 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-
-.search-wrapper {
-  position: relative;
-  width: 380px;
-}
-
-.search-wrapper i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.search-input {
-  width: 100%;
-  background-color: #f2f2f7;
-  border: none;
-  padding: 8px 12px 8px 36px;
-  border-radius: 10px;
-  font-size: 14px;
-  outline: none;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.text-btn {
-  background: none;
-  border: none;
-  color: var(--accent-blue);
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-
-.text-btn:hover {
-  background-color: rgba(0, 122, 255, 0.1);
-}
-
 .scroll-content {
   flex: 1;
-  overflow-y: auto;
   padding: 10px 40px 100px;
 }
 
@@ -859,6 +691,32 @@ header {
 /* --- 标签筛选 --- */
 .tag-filter {
   margin-bottom: 24px;
+}
+
+/* --- 图片列表滚动容器 --- */
+.gallery-scroll-container {
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  padding-right: 8px;
+
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
 }
 
 /* --- 照片网格 --- */
