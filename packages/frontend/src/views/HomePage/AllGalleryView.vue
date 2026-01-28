@@ -5,7 +5,12 @@
       <div class="scroll-content">
         <!-- 标题栏 -->
         <div class="title-bar">
-          <h1 class="page-title">所有照片</h1>
+          <h1 class="page-title">
+            <span v-show="!selectionMode">所有照片</span>
+            <span v-show="selectionMode">
+              已选择 {{ selectedIds.size }} 张照片
+            </span>
+          </h1>
           <div class="sort-control" @click="toggleSortOrder">
             <i class="fa-solid" :class="sortOrder === 'desc' ? 'fa-arrow-down-short-wide' : 'fa-arrow-up-wide-short'"></i>
             <span>{{ sortOrder === 'desc' ? '最新在前' : '最早在前' }}</span>
@@ -70,7 +75,7 @@
                 </el-image>
 
                 <div class="select-overlay" v-if="selectionMode">
-                  <i class="fa-solid fa-check"></i>
+                  <el-icon class="check-icon"><Check /></el-icon>
                 </div>
 
                 <div class="image-actions" @click.stop>
@@ -106,39 +111,35 @@
           </div>
         </div>
 
-        <!-- 分页 -->
-        <div class="pagination-container" v-if="total > 0">
-          <el-pagination
-            v-model:current-page="page"
-            v-model:page-size="limit"
-            :page-sizes="[20, 50, 100, 200]"
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            @size-change="handleSizeChange"
-            @current-change="handlePageChange"
-          />
+        <div class="foot-container">
+          <!-- 底部操作工具栏 -->
+          <div class="bottom-toolbar" v-if="selectionMode">
+            <div class="toolbar-content">
+              <div class="toolbar-actions">
+                <el-button type="primary" plain @click="toggleSelectAll">{{ isAllSelected ? '取消全选' : '全选' }}</el-button>
+                <el-button type="primary" plain :icon="CollectionTag">添加到相册</el-button>
+                <el-button type="primary" plain :icon="Star">收藏</el-button>
+                <el-button type="danger" :icon="Delete" @click="deleteSelected">删除</el-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分页 -->
+          <div class="pagination-container" v-if="total > 0">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="limit"
+              :page-sizes="[20, 50, 100, 200]"
+              layout="total, sizes, prev, pager, next, jumper"
+              :total="total"
+              @size-change="handleSizeChange"
+              @current-change="handlePageChange"
+            />
+          </div>
         </div>
       </div>
 
-      <!-- 底部工具栏 -->
-      <div class="bottom-toolbar" :class="{ active: selectionMode }">
-        <div class="toolbar-item">
-          <i class="fa-solid fa-share-from-square"></i>
-          <span>共享</span>
-        </div>
-        <div class="toolbar-item">
-          <i class="fa-solid fa-folder-plus"></i>
-          <span>添加到</span>
-        </div>
-        <div class="toolbar-item">
-          <i class="fa-solid fa-heart"></i>
-          <span>收藏</span>
-        </div>
-        <div class="toolbar-item" style="color: var(--accent-red)" @click="deleteSelected">
-          <i class="fa-solid fa-trash-can"></i>
-          <span>删除</span>
-        </div>
-      </div>
+
 
       <!-- 图片大图预览和编辑模态框 -->
       <el-dialog
@@ -239,8 +240,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, inject, watch } from 'vue'
-import { Picture, Loading, Delete, Folder } from '@element-plus/icons-vue'
+import { ref, onMounted, reactive, inject, watch, computed } from 'vue'
+import { Picture, Loading, Delete, Folder, Check, Close, CollectionTag, Star } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
@@ -484,6 +485,31 @@ const deleteSelected = async () => {
   }
 }
 
+// 计算属性：判断是否所有图片都被选中
+const isAllSelected = computed(() => {
+  return images.value.length > 0 && selectedIds.value.size === images.value.length
+})
+
+// 全选功能
+const selectAll = () => {
+  const allIds = new Set(images.value.map(image => image.id))
+  selectedIds.value = allIds
+}
+
+// 取消全选功能
+const deselectAll = () => {
+  selectedIds.value = new Set()
+}
+
+// 切换全选/取消全选
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    deselectAll()
+  } else {
+    selectAll()
+  }
+}
+
 // 预览图片
 const previewImage = (index: number) => {
   const img = images.value[index]
@@ -633,7 +659,7 @@ const openInFolder = async (image: ImageInfo) => {
 
 <style scoped lang="scss">
 :root {
-  --sidebar-bg: rgba(246, 246, 246, 0.75);
+  --sidebar-bg: rgb(246, 246, 246);
   --main-bg: #ffffff;
   --accent-blue: #007aff;
   --accent-red: #ff3b30;
@@ -703,6 +729,8 @@ main {
   margin-bottom: 24px;
 }
 
+
+
 /* --- 标签筛选 --- */
 .tag-filter {
   margin-bottom: 24px;
@@ -710,7 +738,7 @@ main {
 
 /* --- 图片列表滚动容器 --- */
 .gallery-scroll-container {
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 280px);
   overflow-y: auto;
   padding-right: 8px;
 
@@ -802,8 +830,7 @@ main {
 }
 
 .photo-card.selected .select-overlay {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
+  background: #409EFF;
 }
 
 .image-actions {
@@ -856,44 +883,15 @@ main {
   }
 }
 
-/* --- 底部工具栏 --- */
-.bottom-toolbar {
+.foot-container {
   position: absolute;
-  bottom: -80px;
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: 400px;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 0.5px solid var(--border-color);
-  border-radius: 16px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
+  justify-content: center;
   align-items: center;
-  justify-content: space-around;
-  padding: 0 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 100;
-}
-
-.bottom-toolbar.active {
-  bottom: 30px;
-}
-
-.toolbar-item {
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--accent-blue);
-  cursor: pointer;
-  padding: 8px 16px;
-}
-
-.toolbar-item span {
-  font-size: 11px;
-  font-weight: 500;
 }
 
 /* --- 分页 --- */
@@ -901,8 +899,8 @@ main {
   display: flex;
   justify-content: center;
   padding: 1rem;
-  margin-top: 1rem;
   flex-shrink: 0;
+  z-index: 10;
 }
 
 /* --- 图片详情对话框 --- */
@@ -958,5 +956,123 @@ main {
     justify-content: space-between;
     align-items: center;
   }
+}
+
+/* --- 底部操作工具栏 --- */
+.bottom-toolbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-around;
+  position: relative;
+  background-color: white;
+  transform: translateY(30%);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  animation: slideUp 0.2s ease-out;
+  border-radius: 12px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(20);
+  }
+}
+
+.toolbar-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 20px;
+
+}
+
+.selection-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-right: 12px;
+  .count-icon {
+    font-size: 16px;
+    color: var(--accent-blue);
+  }
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+
+  .el-button {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px 16px;
+    background: transparent !important;
+
+    .el-icon {
+      margin-right: 4px;
+    }
+
+    &.el-button--primary {
+      color: #007aff;
+      border-color: #007aff;
+
+      .el-icon {
+        color: #007aff;
+      }
+
+      &:hover {
+        background: rgba(0, 122, 255, 0.1) !important;
+      }
+    }
+
+    &.el-button--danger {
+      color: #ff3b30;
+      border-color: #ff3b30;
+
+      .el-icon {
+        color: #ff3b30;
+      }
+
+      &:hover {
+        background: rgba(255, 59, 48, 0.1) !important;
+      }
+    }
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .toolbar-content {
+    padding: 12px 20px;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .selection-count {
+    justify-content: center;
+  }
+
+  .toolbar-actions {
+    justify-content: space-around;
+  }
+}
+
+/* 调整主内容区的底部边距 */
+.scroll-content {
+  padding-bottom: 60px;
+}
+
+/* 调整图片网格的最大高度 */
+.gallery-scroll-container {
+  max-height: calc(100vh - 280px);
 }
 </style>

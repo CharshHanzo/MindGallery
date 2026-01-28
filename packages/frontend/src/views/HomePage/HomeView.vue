@@ -105,7 +105,7 @@ provide('searchState', {
 
 <style lang="scss" scoped>
 :root {
-  --sidebar-bg: rgba(246, 246, 246, 0.75);
+  --sidebar-bg: rgb(246, 246, 246);
   --main-bg: #ffffff;
   --accent-blue: #007aff;
   --accent-red: #ff3b30;
@@ -124,7 +124,7 @@ provide('searchState', {
   // 侧边栏
   .sidebar {
     width: 260px;
-    background-color: var(--sidebar-bg);
+    background-color: rgb(246, 246, 246);
     backdrop-filter: blur(30px) saturate(180%);
     border-right: 0.5px solid var(--border-color);
     display: flex;
@@ -185,12 +185,13 @@ provide('searchState', {
   // 主内容区
   main {
     flex: 1;
-    background-color: var(--main-bg);
+    background-color: #ffffff;
     display: flex;
     flex-direction: column;
     position: relative;
     min-width: 0;
     overflow: hidden;
+    border-left: 1px solid rgb(220, 220, 220);
 
     // 照片墙内容区域
     .moments-content {
