@@ -9,7 +9,13 @@ const isElectron = !!window.electronAPI;
  */
 export const getTagList = async () => {
   if (isElectron) {
-    return await universalApi.backend.call('tags:list');
+    const tags = await universalApi.backend.call('tags:list');
+    // 包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: tags
+    };
   }
 
   const response = await fetch('/api/tags')

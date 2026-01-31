@@ -90,6 +90,12 @@ export class IpcServer {
       case 'images:delete':
         return await this.db.deleteImages(params.imageIds);
 
+      case 'images:update':
+        return this.db.updateImage(params.id, params.data);
+
+      case 'images:get':
+        return this.db.getImageById(params.id);
+
       // --- System ---
       case 'system:get-info':
         return {

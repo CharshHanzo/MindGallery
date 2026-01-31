@@ -17,7 +17,14 @@ const isElectron = !!window.electronAPI;
  */
 export const getAlbumList = async (): Promise<AlbumsListResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:list') as unknown as AlbumsListResponse;
+    const result = await universalApi.backend.call('albums:list');
+    console.log('获取相册列表原始结果:', result);
+    // 后端直接返回相册数组，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: result
+    } as AlbumsListResponse;
   }
 
   const response = await fetch('/api/albums')
@@ -34,7 +41,14 @@ export const getAlbumList = async (): Promise<AlbumsListResponse> => {
  */
 export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:create', data) as unknown as CreateAlbumResponse;
+    const result = await universalApi.backend.call('albums:create', data);
+    console.log('创建相册原始结果:', result);
+    // 后端直接返回相册对象，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: result
+    } as CreateAlbumResponse;
   }
 
   const response = await fetch('/api/albums', {
@@ -57,7 +71,17 @@ export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbum
  */
 export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:get', { id: albumId }) as unknown as AlbumDetailResponse;
+    const result = await universalApi.backend.call('albums:get', { id: albumId });
+    console.log('获取相册详情原始结果:', result);
+    // 后端直接返回相册对象，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: {
+        ...result,
+        images: [] // 后端可能不返回图片列表，需要补充
+      }
+    } as AlbumDetailResponse;
   }
 
   const response = await fetch(`/api/albums/${albumId}`)
@@ -74,7 +98,14 @@ export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailRespon
  */
 export const updateAlbum = async (albumId: string, data: CreateAlbumRequest): Promise<CreateAlbumResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:update', { id: albumId, ...data }) as unknown as CreateAlbumResponse;
+    const result = await universalApi.backend.call('albums:update', { id: albumId, ...data });
+    console.log('更新相册原始结果:', result);
+    // 后端直接返回相册对象，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: result
+    } as CreateAlbumResponse;
   }
 
   const response = await fetch(`/api/albums/${albumId}`, {
@@ -97,7 +128,13 @@ export const updateAlbum = async (albumId: string, data: CreateAlbumRequest): Pr
  */
 export const deleteAlbum = async (albumId: string): Promise<{ success: boolean; message: string }> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:delete', { id: albumId }) as unknown as { success: boolean; message: string };
+    const result = await universalApi.backend.call('albums:delete', { id: albumId });
+    console.log('删除相册原始结果:', result);
+    // 后端返回的结果可能是{ success: true }，需要确保格式正确
+    return {
+      success: true,
+      message: 'ok'
+    };
   }
 
   const response = await fetch(`/api/albums/${albumId}`, {
@@ -116,7 +153,17 @@ export const deleteAlbum = async (albumId: string): Promise<{ success: boolean; 
  */
 export const addImagesToAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:add-images', { albumId, imageIds }) as unknown as AlbumImageResponse;
+    const result = await universalApi.backend.call('albums:add-images', { albumId, imageIds });
+    console.log('添加图片到相册原始结果:', result);
+    // 后端返回的结果可能是{ success: true }，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: {
+        addedCount: imageIds.length,
+        albumId
+      }
+    } as AlbumImageResponse;
   }
 
   const body: AlbumImageRequest = { imageIds }
@@ -151,7 +198,17 @@ export const addImagesToAlbum = async (albumId: string, imageIds: string[]): Pro
  */
 export const removeImagesFromAlbum = async (albumId: string, imageIds: string[]): Promise<AlbumImageResponse> => {
   if (isElectron) {
-    return await universalApi.backend.call('albums:remove-images', { albumId, imageIds }) as unknown as AlbumImageResponse;
+    const result = await universalApi.backend.call('albums:remove-images', { albumId, imageIds });
+    console.log('从相册移除图片原始结果:', result);
+    // 后端返回的结果可能是{ success: true }，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: {
+        removedCount: imageIds.length,
+        albumId
+      }
+    } as AlbumImageResponse;
   }
 
   const body: AlbumImageRequest = { imageIds }

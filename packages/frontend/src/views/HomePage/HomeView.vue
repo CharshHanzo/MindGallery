@@ -45,10 +45,10 @@ provide('searchState', {
           <el-icon><Clock /></el-icon>
           <span>最近添加</span>
         </a>
-        <a href="#" class="nav-item">
+        <router-link to="/favorites" class="nav-item" active-class="active">
           <el-icon><Star /></el-icon>
           <span>个人收藏</span>
-        </a>
+        </router-link>
       </nav>
       <div class="sidebar-header" style="margin-top: 30px">Library</div>
       <nav class="nav-group">

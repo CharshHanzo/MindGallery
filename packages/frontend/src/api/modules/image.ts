@@ -33,6 +33,9 @@ const mapLocalToImageInfo = (item: {
   width?: number;
   height?: number;
   format?: string;
+  tags?: string[];
+  title?: string;
+  description?: string;
 }) => {
   const normalizedPath = item.filePath.replace(/\\/g, '/');
   const url = `file:///${normalizedPath}`;
@@ -43,9 +46,9 @@ const mapLocalToImageInfo = (item: {
     thumbnailUrl: url,
     fileSize: item.fileSize,
     uploadTime: new Date(item.createdAt).toISOString(),
-    tags: [],
-    title: undefined,
-    description: undefined,
+    tags: item.tags || [],
+    title: item.title,
+    description: item.description,
     width: item.width,
     height: item.height,
     takenTime: undefined,
@@ -165,6 +168,9 @@ export const getImageList = async (params?: {
         height?: number;
         format?: string;
         metadata?: Record<string, any>;
+        tags?: string[];
+        title?: string;
+        description?: string;
       }>;
       const data = items.map(item => {
         const normalizedPath = item.filePath.replace(/\\/g, '/');
@@ -176,9 +182,9 @@ export const getImageList = async (params?: {
           thumbnailUrl: url,
           fileSize: item.fileSize,
           uploadTime: new Date(item.createdAt).toISOString(),
-          tags: [],
-          title: undefined,
-          description: undefined,
+          tags: item.tags || [],
+          title: item.title,
+          description: item.description,
           width: item.width,
           height: item.height,
           takenTime: undefined,
@@ -196,11 +202,13 @@ export const getImageList = async (params?: {
       };
     }
 
+    // 确保传递普通对象，避免Electron IPC克隆错误
     const listParams: any = {
       limit,
       offset,
       sortBy: params?.sortBy,
-      sortOrder: params?.sortOrder
+      sortOrder: params?.sortOrder,
+      tags: params?.tags ? [...params.tags] : undefined
     };
 
     const result = await universalApi.backend.call('images:list', listParams) as {
@@ -215,6 +223,9 @@ export const getImageList = async (params?: {
         height?: number;
         format?: string;
         metadata?: Record<string, any>;
+        tags?: string[];
+        title?: string;
+        description?: string;
       }>;
       total: number;
       page: number;
@@ -233,9 +244,9 @@ export const getImageList = async (params?: {
     filePath: item.filePath, // 添加原始文件路径
     fileSize: item.fileSize,
     uploadTime: new Date(item.createdAt).toISOString(),
-    tags: [],
-    title: undefined,
-    description: undefined,
+    tags: item.tags || [],
+    title: item.title,
+    description: item.description,
     width: item.width,
     height: item.height,
     takenTime: undefined,
@@ -341,9 +352,21 @@ export const deleteImages = async (imageIds: string[]): Promise<BatchOperationRe
  */
 export const updateImageInfo = async (imageId: string, data: UpdateImageRequest): Promise<ImageDetailResponse> => {
   if (isElectron) {
-    // Backend doesn't support update yet
-    console.warn('Update image not implemented in backend yet');
-    return {} as ImageDetailResponse;
+    console.log('开始更新图片信息:', { id: imageId, data });
+    // 将数据转换为普通对象，避免Electron IPC克隆错误
+    const plainData = {
+      ...data,
+      tags: data.tags ? [...data.tags] : undefined,
+      albumIds: data.albumIds ? [...data.albumIds] : undefined
+    };
+    const result = await universalApi.backend.call('images:update', { id: imageId, data: plainData });
+    console.log('更新图片信息原始结果:', result);
+    // 后端直接返回图片对象，需要包装成前端期望的格式
+    return {
+      success: true,
+      message: 'ok',
+      data: result
+    } as ImageDetailResponse;
   }
 
   const response = await fetch(`/api/images/${imageId}`, {

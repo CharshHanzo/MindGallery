@@ -10,6 +10,7 @@ export interface LocalImage {
   format?: string;
   hash?: string;
   metadata?: Record<string, any>;
+  tags?: string[];
 }
 
 export interface ListOptions {
@@ -17,6 +18,7 @@ export interface ListOptions {
   offset?: number;
   sortBy?: 'createdAt' | 'fileName' | 'fileSize';
   sortOrder?: 'asc' | 'desc';
+  tags?: string[];
 }
 
 export interface SearchQuery {

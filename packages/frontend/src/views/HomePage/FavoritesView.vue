@@ -1,49 +1,14 @@
 <template>
-  <div class="all-gallery-view">
+  <div class="favorites-view">
     <!-- 主内容区 -->
-    <main id="main-container" :class="{ selecting: selectionMode }">
+    <main id="main-container">
       <div class="scroll-content">
         <!-- 标题栏 -->
         <div class="title-bar">
-          <h1 class="page-title">
-            <span v-show="!selectionMode">所有照片</span>
-            <span v-show="selectionMode">
-              已选择 {{ selectedIds.size }} 张照片
-            </span>
-          </h1>
-          <div class="sort-control" @click="toggleSortOrder">
-            <i class="fa-solid" :class="sortOrder === 'desc' ? 'fa-arrow-down-short-wide' : 'fa-arrow-up-wide-short'"></i>
-            <span>{{ sortOrder === 'desc' ? '最新在前' : '最早在前' }}</span>
-          </div>
+          <h1 class="page-title">个人收藏</h1>
         </div>
 
         <div class="title-divider"></div>
-
-        <!-- 标签筛选 -->
-        <div class="tag-filter" v-if="availableTags.length > 0">
-          <el-select
-            v-model="selectedTags"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="筛选标签"
-            class="tag-select"
-            @change="handleTagChange"
-            clearable
-          >
-            <el-option
-              v-for="tag in availableTags"
-              :key="tag.id"
-              :label="tag.name"
-              :value="tag.name"
-            >
-              <span style="float: left">{{ tag.name }}</span>
-              <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
-                {{ tag.count }}
-              </span>
-            </el-option>
-          </el-select>
-        </div>
 
         <!-- 图片列表 -->
         <div v-loading="loading" class="gallery-content">
@@ -53,8 +18,7 @@
                 v-for="(image, index) in images"
                 :key="image.id"
                 class="photo-card"
-                :class="{ selected: isSelected(image.id) && selectionMode }"
-                @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
+                @click="previewImage(index)"
               >
                 <el-image
                   :src="image.thumbnailUrl || image.url"
@@ -74,18 +38,14 @@
                   </template>
                 </el-image>
 
-                <div class="select-overlay" v-if="selectionMode">
-                  <el-icon class="check-icon"><Check /></el-icon>
-                </div>
-
                 <div class="image-actions" @click.stop>
                   <el-button
-                    :type="isFavorite(image) ? 'warning' : 'default'"
+                    type="warning"
                     circle
                     size="small"
                     :icon="Star"
                     @click="handleFavorite(image)"
-                    :title="isFavorite(image) ? '取消收藏' : '收藏图片'"
+                    title="取消收藏"
                   />
                   <el-button
                     type="danger"
@@ -115,23 +75,11 @@
             </div>
 
             <!-- 空状态 -->
-            <el-empty v-else description="暂无图片" />
+            <el-empty v-else description="暂无收藏图片" />
           </div>
         </div>
 
         <div class="foot-container">
-          <!-- 底部操作工具栏 -->
-          <div class="bottom-toolbar" v-if="selectionMode">
-            <div class="toolbar-content">
-              <div class="toolbar-actions">
-                <el-button type="primary" plain @click="toggleSelectAll">{{ isAllSelected ? '取消全选' : '全选' }}</el-button>
-                <el-button type="primary" plain :icon="CollectionTag" @click="showAddToAlbumDialog = true">添加到相册</el-button>
-                <el-button type="primary" plain :icon="Star" @click="handleBatchFavorite">收藏</el-button>
-                <el-button type="danger" :icon="Delete" @click="deleteSelected">删除</el-button>
-              </div>
-            </div>
-          </div>
-
           <!-- 分页 -->
           <div class="pagination-container" v-if="total > 0">
             <el-pagination
@@ -146,8 +94,6 @@
           </div>
         </div>
       </div>
-
-
 
       <!-- 图片大图预览和编辑模态框 -->
       <el-dialog
@@ -181,7 +127,7 @@
                 <el-input
                   v-model="editingForm.description"
                   type="textarea"
-                  :rows="4"
+                  rows="4"
                   placeholder="请输入图片描述"
                 />
               </el-form-item>
@@ -243,68 +189,19 @@
           </span>
         </template>
       </el-dialog>
-
-      <!-- 添加到相册对话框 -->
-      <el-dialog
-        v-model="showAddToAlbumDialog"
-        title="添加到相册"
-        width="400px"
-        destroy-on-close
-      >
-        <el-form label-width="80px">
-          <el-form-item label="选择相册">
-            <el-select
-              v-model="selectedAlbumId"
-              placeholder="请选择相册"
-              style="width: 100%"
-              clearable
-            >
-              <el-option
-                v-for="album in availableAlbums"
-                :key="album.id"
-                :label="album.name"
-                :value="album.id"
-              >
-                <span style="float: left">{{ album.name }}</span>
-                <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
-                  {{ album.imageCount }} 张
-                </span>
-              </el-option>
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="showAddToAlbumDialog = false">取消</el-button>
-            <el-button type="primary" @click="handleAddToAlbum" :loading="saving">确定</el-button>
-          </span>
-        </template>
-      </el-dialog>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, inject, watch, computed } from 'vue'
-import { Picture, Loading, Delete, Folder, Check, CollectionTag, Star } from '@element-plus/icons-vue'
+import { ref, onMounted, reactive } from 'vue'
+import { Picture, Loading, Delete, Folder, Star } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
-import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
+import { updateImageInfo, deleteImage } from '@/api/modules/image'
 import { getTagList } from '@/api/modules/tag'
-import { getAlbumList, createAlbum, addImagesToAlbum, removeImagesFromAlbum } from '@/api/modules/album'
+import { getAlbumList, removeImagesFromAlbum } from '@/api/modules/album'
 import { universalApi } from '@/api'
-
-// 注入共享状态
-interface SearchState {
-  searchQuery: ReturnType<typeof ref<string>>
-  selectionMode: ReturnType<typeof ref<boolean>>
-  toggleSelectionMode: () => void
-}
-
-const searchState = inject<SearchState | undefined>('searchState')
-const searchQuery = searchState?.searchQuery || ref('')
-const selectionMode = searchState?.selectionMode || ref(false)
-const toggleSelectionMode = searchState?.toggleSelectionMode || (() => {})
 
 // 状态
 const loading = ref(false)
@@ -313,17 +210,8 @@ const images = ref<ImageInfo[]>([])
 const total = ref(0)
 const page = ref(1)
 const limit = ref(50)
-const selectedTags = ref<string[]>([])
-const sortBy = ref('uploadTime')
-const sortOrder = ref<'asc' | 'desc'>('desc')
 const availableTags = ref<TagInfo[]>([])
 const availableAlbums = ref<AlbumInfo[]>([])
-
-// 对话框状态
-const showAddToAlbumDialog = ref(false)
-
-// 相册选择状态
-const selectedAlbumId = ref<string>('')
 
 // 图片预览和编辑
 const detailDialogVisible = ref(false)
@@ -335,59 +223,58 @@ const editingForm = reactive({
   albumIds: [] as string[]
 })
 
-// 防抖计时器
-let debounceTimer: number | null = null
-
-// 监听搜索参数变化
-watch(searchQuery, (newQuery) => {
-  if (newQuery !== undefined) {
-    // 清除之前的防抖计时器
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
-    }
-
-    // 设置新的防抖计时器，300ms 后执行搜索
-    debounceTimer = window.setTimeout(() => {
-      page.value = 1
-      fetchImages()
-    }, 300)
-  }
-}, { immediate: false })
-
 // 初始化
 onMounted(async () => {
   await Promise.all([
-    fetchImages(),
+    fetchFavoriteImages(),
     fetchTags(),
     fetchAlbums()
   ])
 })
 
-// 获取图片列表
-const fetchImages = async () => {
+// 获取收藏的图片列表
+const fetchFavoriteImages = async () => {
   loading.value = true
   try {
-    // 清理旧的 blob URL
-    revokeBlobUrls()
-    const response = await getImageList({
-      page: page.value,
-      limit: limit.value,
-      search: searchQuery.value,
-      tags: selectedTags.value,
-      sortBy: sortBy.value,
-      sortOrder: sortOrder.value
-    })
+    // 首先获取收藏相册的ID
+    const albumsResponse = await getAlbumList()
+    if (!albumsResponse.success) {
+      throw new Error('获取相册列表失败')
+    }
 
-    if (response.success) {
-      images.value = response.data
-      total.value = response.total || 0
+    const favoriteAlbum = albumsResponse.data.find(album => album.name === '个人收藏')
+    if (!favoriteAlbum) {
+      // 没有收藏相册，显示空状态
+      images.value = []
+      total.value = 0
+      return
+    }
+
+    // 获取收藏相册中的图片
+    const response = await fetch(`/api/albums/${favoriteAlbum.id}`)
+    if (!response.ok) {
+      throw new Error(`获取收藏相册失败: ${response.statusText}`)
+    }
+
+    const albumDetail = await response.json()
+    if (albumDetail.success) {
+      images.value = albumDetail.data.images
+      total.value = images.value.length
+
+      // 为每个图片添加albums信息，以便isFavorite函数正常工作
+      images.value = images.value.map(img => ({
+        ...img,
+        albums: [{ id: favoriteAlbum.id, name: '个人收藏', createdAt: new Date().toISOString() }]
+      }))
+
+      // 在Electron环境下构建blob URL
       if (isElectron) {
         await buildBlobUrlsForImages()
       }
     }
   } catch (error) {
-    console.error('获取图片列表失败:', error)
-    ElMessage.error('获取图片列表失败')
+    console.error('获取收藏图片失败:', error)
+    ElMessage.error('获取收藏图片失败')
   } finally {
     loading.value = false
   }
@@ -417,63 +304,16 @@ const fetchAlbums = async () => {
   }
 }
 
-// 获取或创建收藏相册
-const getOrCreateFavoriteAlbum = async (): Promise<string> => {
-  try {
-    // 先获取相册列表
-    const albumsResponse = await getAlbumList()
-    if (!albumsResponse.success) {
-      throw new Error('获取相册列表失败')
-    }
-
-    // 查找是否已存在收藏相册
-    const favoriteAlbum = albumsResponse.data.find(album => album.name === '个人收藏')
-
-    if (favoriteAlbum) {
-      return favoriteAlbum.id
-    }
-
-    // 如果不存在，创建收藏相册
-    const createResponse = await createAlbum({ name: '个人收藏', description: '用户收藏的图片' })
-    if (!createResponse.success) {
-      throw new Error('创建收藏相册失败')
-    }
-
-    // 更新相册列表
-    await fetchAlbums()
-
-    return createResponse.data.id
-  } catch (error) {
-    console.error('获取或创建收藏相册失败:', error)
-    throw error
-  }
-}
-
 // 事件处理
-const handleTagChange = () => {
-  page.value = 1
-  fetchImages()
-}
-
-const handleSortChange = () => {
-  page.value = 1
-  fetchImages()
-}
-
-const toggleSortOrder = () => {
-  sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
-  handleSortChange()
-}
-
 const handleSizeChange = (val: number) => {
   limit.value = val
   page.value = 1
-  fetchImages()
+  fetchFavoriteImages()
 }
 
 const handlePageChange = (val: number) => {
   page.value = val
-  fetchImages()
+  fetchFavoriteImages()
 }
 
 const isElectron = !!(window as unknown as { electronAPI?: unknown }).electronAPI
@@ -495,7 +335,7 @@ const urlToWindowsPath = (fileUrl: string) => {
   const decoded = decodeURI(withoutScheme)
 
   // 如果是Windows绝对路径（如 file:///E:/path/to/image.jpg）
-  // 转换后应该是 E:\\path\\to\\image.jpg
+  // 转换后应该是 E:\path\to\image.jpg
   if (decoded.match(/^[a-zA-Z]:\//)) {
     // 直接转换斜杠为反斜杠，保留盘符
     const winPath = decoded.replace(/\//g, '\\')
@@ -530,141 +370,6 @@ const buildBlobUrlsForImages = async () => {
   })
   await Promise.all(tasks)
 }
-const revokeBlobUrls = () => {
-  createdBlobUrls.value.forEach(u => URL.revokeObjectURL(u))
-  createdBlobUrls.value = []
-}
-
-const selectedIds = ref<Set<string>>(new Set())
-const isSelected = (id: string) => selectedIds.value.has(id)
-const toggleSelect = (id: string) => {
-  const s = new Set(selectedIds.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  selectedIds.value = s
-}
-const deleteSelected = async () => {
-  if (selectedIds.value.size === 0) return
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
-      '批量删除确认',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
-    const ids = Array.from(selectedIds.value)
-    await deleteImages(ids)
-    images.value = images.value.filter(item => !selectedIds.value.has(item.id))
-    total.value = Math.max(0, total.value - ids.length)
-    ElMessage.success('批量删除成功')
-    toggleSelectionMode()
-    revokeBlobUrls()
-    await fetchImages()
-  } catch {
-    // 忽略取消操作
-  }
-}
-
-// 计算属性：判断是否所有图片都被选中
-const isAllSelected = computed(() => {
-  return images.value.length > 0 && selectedIds.value.size === images.value.length
-})
-
-// 全选功能
-const selectAll = () => {
-  const allIds = new Set(images.value.map(image => image.id))
-  selectedIds.value = allIds
-}
-
-// 取消全选功能
-const deselectAll = () => {
-  selectedIds.value = new Set()
-}
-
-// 切换全选/取消全选
-const toggleSelectAll = () => {
-  if (isAllSelected.value) {
-    deselectAll()
-  } else {
-    selectAll()
-  }
-}
-
-// 检查图片是否已收藏
-const isFavorite = (image: ImageInfo): boolean => {
-  return image.albums?.some(album => album.name === '个人收藏') || false
-}
-
-// 处理单个图片的收藏/取消收藏
-const handleFavorite = async (image: ImageInfo) => {
-  try {
-    const favoriteAlbumId = await getOrCreateFavoriteAlbum()
-
-    if (isFavorite(image)) {
-      // 取消收藏
-      await removeImagesFromAlbum(favoriteAlbumId, [image.id])
-      ElMessage.success('已取消收藏')
-    } else {
-      // 添加收藏
-      await addImagesToAlbum(favoriteAlbumId, [image.id])
-      ElMessage.success('收藏成功')
-    }
-
-    // 刷新图片列表
-    await fetchImages()
-  } catch (error) {
-    console.error('收藏操作失败:', error)
-    ElMessage.error('收藏操作失败，请稍后重试')
-  }
-}
-
-// 处理批量收藏
-const handleBatchFavorite = async () => {
-  if (selectedIds.value.size === 0) return
-
-  try {
-    const favoriteAlbumId = await getOrCreateFavoriteAlbum()
-    const imageIds = Array.from(selectedIds.value)
-
-    await addImagesToAlbum(favoriteAlbumId, imageIds)
-    ElMessage.success(`已成功收藏 ${imageIds.length} 张图片`)
-
-    // 刷新图片列表
-    await fetchImages()
-    toggleSelectionMode()
-  } catch (error) {
-    console.error('批量收藏失败:', error)
-    ElMessage.error('批量收藏失败，请稍后重试')
-  }
-}
-
-// 处理添加到相册
-const handleAddToAlbum = async () => {
-  if (selectedIds.value.size === 0) return
-  if (!selectedAlbumId.value) {
-    ElMessage.warning('请选择相册')
-    return
-  }
-
-  try {
-    const imageIds = Array.from(selectedIds.value)
-    await addImagesToAlbum(selectedAlbumId.value, imageIds)
-    ElMessage.success(`已成功添加 ${imageIds.length} 张图片到相册`)
-
-    // 刷新图片列表
-    await fetchImages()
-    showAddToAlbumDialog.value = false
-    toggleSelectionMode()
-    // 重置选择
-    selectedAlbumId.value = ''
-  } catch (error) {
-    console.error('添加到相册失败:', error)
-    ElMessage.error('添加到相册失败，请稍后重试')
-  }
-}
 
 // 预览图片
 const previewImage = (index: number) => {
@@ -680,6 +385,7 @@ const previewImage = (index: number) => {
   detailDialogVisible.value = true
 }
 
+// 保存图片信息
 const saveImageInfo = async () => {
   if (!currentImage.value) return
 
@@ -720,6 +426,32 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+// 处理收藏/取消收藏
+const handleFavorite = async (image: ImageInfo) => {
+  try {
+    // 找到收藏相册
+    const albumsResponse = await getAlbumList()
+    if (!albumsResponse.success) {
+      throw new Error('获取相册列表失败')
+    }
+
+    const favoriteAlbum = albumsResponse.data.find(album => album.name === '个人收藏')
+    if (!favoriteAlbum) {
+      throw new Error('收藏相册不存在')
+    }
+
+    // 从收藏相册中移除图片
+    await removeImagesFromAlbum(favoriteAlbum.id, [image.id])
+    ElMessage.success('已取消收藏')
+
+    // 刷新图片列表
+    await fetchFavoriteImages()
+  } catch (error) {
+    console.error('取消收藏失败:', error)
+    ElMessage.error('取消收藏失败，请稍后重试')
+  }
+}
+
 // 删除图片逻辑
 const handleDelete = (image: ImageInfo) => {
   ElMessageBox.confirm(
@@ -746,6 +478,7 @@ const handleDelete = (image: ImageInfo) => {
   })
 }
 
+// 从对话框中删除图片
 const handleDeleteFromDialog = () => {
   if (!currentImage.value) return
 
@@ -831,7 +564,7 @@ const openInFolder = async (image: ImageInfo) => {
   -webkit-font-smoothing: antialiased;
 }
 
-.all-gallery-view {
+.favorites-view {
   background-color: var(--main-bg);
   color: var(--text-primary);
   height: 100%;
@@ -869,26 +602,9 @@ main {
   letter-spacing: -0.02em;
 }
 
-.sort-control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--accent-blue);
-  cursor: pointer;
-  padding: 6px 0;
-}
-
 .title-divider {
   height: 0.5px;
   background-color: var(--border-color);
-  margin-bottom: 24px;
-}
-
-
-
-/* --- 标签筛选 --- */
-.tag-filter {
   margin-bottom: 24px;
 }
 
@@ -957,36 +673,6 @@ main {
   .gallery-image {
     transform: scale(1.05);
   }
-}
-
-/* 选择态 */
-.selecting .photo-card {
-  transform: scale(0.92);
-}
-
-.select-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid white;
-  background: rgba(0, 0, 0, 0.2);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 12px;
-  z-index: 10;
-}
-
-.selecting .select-overlay {
-  display: flex;
-}
-
-.photo-card.selected .select-overlay {
-  background: #409EFF;
 }
 
 .image-actions {
@@ -1111,114 +797,6 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
-  }
-}
-
-/* --- 底部操作工具栏 --- */
-.bottom-toolbar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-around;
-  position: relative;
-  background-color: white;
-  transform: translateY(30%);
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  animation: slideUp 0.2s ease-out;
-  border-radius: 12px;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(20);
-  }
-}
-
-.toolbar-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 16px 20px;
-
-}
-
-.selection-count {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-primary);
-  font-weight: 500;
-  margin-right: 12px;
-  .count-icon {
-    font-size: 16px;
-    color: var(--accent-blue);
-  }
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-
-  .el-button {
-    font-size: 11px;
-    font-weight: 500;
-    padding: 8px 16px;
-    background: transparent !important;
-
-    .el-icon {
-      margin-right: 4px;
-    }
-
-    &.el-button--primary {
-      color: #007aff;
-      border-color: #007aff;
-
-      .el-icon {
-        color: #007aff;
-      }
-
-      &:hover {
-        background: rgba(0, 122, 255, 0.1) !important;
-      }
-    }
-
-    &.el-button--danger {
-      color: #ff3b30;
-      border-color: #ff3b30;
-
-      .el-icon {
-        color: #ff3b30;
-      }
-
-      &:hover {
-        background: rgba(255, 59, 48, 0.1) !important;
-      }
-    }
-  }
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .toolbar-content {
-    padding: 12px 20px;
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .selection-count {
-    justify-content: center;
-  }
-
-  .toolbar-actions {
-    justify-content: space-around;
   }
 }
 

@@ -48,7 +48,9 @@ export class SqliteClient {
         height INTEGER,
         format TEXT,
         hash TEXT,
-        metadata TEXT
+        metadata TEXT,
+        title TEXT,
+        description TEXT
       );
       
       CREATE INDEX IF NOT EXISTS idx_images_hash ON images(hash);
@@ -87,8 +89,35 @@ export class SqliteClient {
         FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
       );
     `;
-    
+
     this.db.exec(schema);
+
+    // Add missing columns to existing images table
+    try {
+      // Check if title column exists
+      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
+      const columnNames = columns.map(col => col.name);
+      
+      // Add title column if it doesn't exist
+      if (!columnNames.includes('title')) {
+        console.log('Adding title column to images table...');
+        this.db.exec('ALTER TABLE images ADD COLUMN title TEXT');
+        console.log('Title column added successfully');
+      } else {
+        console.log('Title column already exists');
+      }
+      
+      // Add description column if it doesn't exist
+      if (!columnNames.includes('description')) {
+        console.log('Adding description column to images table...');
+        this.db.exec('ALTER TABLE images ADD COLUMN description TEXT');
+        console.log('Description column added successfully');
+      } else {
+        console.log('Description column already exists');
+      }
+    } catch (error) {
+      console.log('Error checking/adding columns:', error);
+    }
   }
 
   // --- Image Operations ---
@@ -125,21 +154,42 @@ export class SqliteClient {
   }
 
   getImages(options: ListOptions): LocalImage[] {
-    const { limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc' } = options;
+    const { limit = 50, offset = 0, sortBy = 'createdAt', sortOrder = 'desc', tags } = options;
     
     // Whitelist sort columns to prevent injection
     const validSortCols = ['createdAt', 'file_name', 'file_size'];
     const sortCol = validSortCols.includes(sortBy) ? sortBy : 'created_at'; // map camelCase to snake_case if needed, but schema uses created_at
     const dbSortCol = sortCol === 'createdAt' ? 'created_at' : (sortCol === 'fileSize' ? 'file_size' : 'file_name');
 
-    const stmt = this.db.prepare(`
-      SELECT * FROM images
-      ORDER BY ${dbSortCol} ${sortOrder.toUpperCase()}
-      LIMIT ? OFFSET ?
-    `);
+    let query = '';
+    let params: any[] = [];
 
-    const rows = stmt.all(limit, offset) as any[];
-    return rows.map(this.mapRowToImage);
+    if (tags && tags.length > 0) {
+      // 使用JOIN和GROUP BY实现标签筛选
+      query = `
+        SELECT i.* FROM images i
+        JOIN image_tags it ON i.id = it.image_id
+        JOIN tags t ON it.tag_id = t.id
+        WHERE t.name IN (${tags.map(() => '?').join(',')})
+        GROUP BY i.id
+        HAVING COUNT(DISTINCT t.name) = ?
+        ORDER BY ${dbSortCol} ${sortOrder.toUpperCase()}
+        LIMIT ? OFFSET ?
+      `;
+      params = [...tags, tags.length, limit, offset];
+    } else {
+      // 普通查询
+      query = `
+        SELECT * FROM images
+        ORDER BY ${dbSortCol} ${sortOrder.toUpperCase()}
+        LIMIT ? OFFSET ?
+      `;
+      params = [limit, offset];
+    }
+
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params) as any[];
+    return rows.map((row) => this.mapRowToImage(row));
   }
 
   getImageByPath(filePath: string): LocalImage | undefined {
@@ -154,10 +204,85 @@ export class SqliteClient {
     return row ? this.mapRowToImage(row) : undefined;
   }
 
+  // 更新图片信息
+  updateImage(id: string, data: {
+    filename?: string;
+    title?: string;
+    description?: string;
+    tags?: string[];
+    albumIds?: string[];
+  }) {
+    const now = Date.now();
+    const updates: any[] = [];
+    const params: any[] = [];
+
+    // 构建更新语句
+    if (data.filename) {
+      updates.push('file_name = ?');
+      params.push(data.filename);
+    }
+
+    if (data.title !== undefined) {
+      updates.push('title = ?');
+      params.push(data.title);
+    }
+
+    if (data.description !== undefined) {
+      updates.push('description = ?');
+      params.push(data.description);
+    }
+
+    // 总是更新updated_at
+    updates.push('updated_at = ?');
+    params.push(now);
+
+    // 添加id参数
+    params.push(id);
+
+    if (updates.length > 1) { // 至少有updated_at
+      const sql = `UPDATE images SET ${updates.join(', ')} WHERE id = ?`;
+      this.db.prepare(sql).run(...params);
+    }
+
+    // 处理标签更新
+    if (data.tags !== undefined) {
+      // 1. 删除当前图片的所有标签关联
+      this.db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(id);
+      
+      // 2. 为每个标签创建新的关联
+      for (const tagName of data.tags) {
+        // 查找或创建标签
+        const tagResult = this.db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName) as any;
+        let tagId = tagResult?.id;
+        if (!tagId) {
+          // 如果标签不存在，创建它
+          tagId = this.createTag(tagName).id;
+        }
+        // 创建图片-标签关联
+        this.db.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)').run(id, tagId, now);
+      }
+    }
+
+    // 如果有相册更新，这里可以添加相册处理逻辑
+
+    // 返回更新后的图片
+    return this.getImageById(id);
+  }
+
   // --- Tag Operations ---
 
   getTags() {
-    return this.db.prepare('SELECT * FROM tags ORDER BY updated_at DESC').all();
+    const tags = this.db.prepare('SELECT * FROM tags ORDER BY updated_at DESC').all() as any[];
+    // 为每个标签计算使用次数
+    return tags.map(tag => {
+      const countResult = this.db.prepare('SELECT COUNT(*) as count FROM image_tags WHERE tag_id = ?').get(tag.id) as any;
+      const count = countResult?.count || 0;
+      return {
+        id: tag.id,
+        name: tag.name,
+        count: count
+      };
+    });
   }
 
   createTag(name: string) {
@@ -317,7 +442,7 @@ export class SqliteClient {
       const placeholders = ids.map(() => '?').join(',');
       const stmt = this.db.prepare(`SELECT * FROM images WHERE id IN (${placeholders})`);
       const rows = stmt.all(...ids) as any[];
-      const images = rows.map(this.mapRowToImage);
+      const images = rows.map((row) => this.mapRowToImage(row));
 
       // Reorder to match search results
       const imageMap = new Map(images.map(img => [img.id, img]));
@@ -343,6 +468,20 @@ export class SqliteClient {
   }
 
   private mapRowToImage(row: any): LocalImage {
+    const metadata = row.metadata ? JSON.parse(row.metadata) : {};
+    // 过滤掉可能导致序列化问题的字段，如 exif 数据
+    if (metadata.exif) {
+      delete metadata.exif;
+    }
+    
+    // 获取图片的标签
+    const tags = this.db.prepare(`
+      SELECT t.name 
+      FROM tags t
+      JOIN image_tags it ON t.id = it.tag_id
+      WHERE it.image_id = ?
+    `).all(row.id).map((tag: any) => tag.name);
+    
     return {
       id: row.id,
       filePath: row.file_path,
@@ -354,7 +493,8 @@ export class SqliteClient {
       height: row.height,
       format: row.format,
       hash: row.hash,
-      metadata: row.metadata ? JSON.parse(row.metadata) : {}
+      metadata,
+      tags
     };
   }
 }
