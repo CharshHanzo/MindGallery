@@ -368,7 +368,7 @@ export const updateImageInfo = async (imageId: string, data: UpdateImageRequest)
       data: result
     } as ImageDetailResponse;
   }
-
+  console.log('开始更新图片信息', { id: imageId, data });
   const response = await fetch(`/api/images/${imageId}`, {
     method: 'PUT',
     headers: {

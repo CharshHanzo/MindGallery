@@ -223,7 +223,7 @@ import { ref, onMounted, reactive, watch } from 'vue'
 import { Collection, Plus, Edit, Delete, Check, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AlbumInfo, ImageInfo } from '@mindgallery/shared/src/types/api'
-import { getAlbumList, createAlbum, updateAlbum as updateAlbumApi, deleteAlbum as deleteAlbumApi, addImagesToAlbum as addImagesToAlbumApi, removeImagesFromAlbum } from '@/api/modules/album'
+import { getAlbumList, createAlbum, updateAlbum as updateAlbumApi, deleteAlbum as deleteAlbumApi, addImagesToAlbum as addImagesToAlbumApi, removeImagesFromAlbum, getAlbumDetail } from '@/api/modules/album'
 import { getImageList } from '@/api/modules/image'
 import { universalApi } from '@/api'
 
@@ -390,14 +390,10 @@ const viewAlbum = async (album: AlbumInfo) => {
 const fetchAlbumImages = async (albumId: string) => {
   loadingImages.value = true
   try {
-    // 这里应该调用专门的API获取相册中的图片
-    // 暂时使用通用的图片列表API，后续需要后端提供专门的API
-    const response = await getImageList()
+    // 使用专门的API获取相册详情，包含图片列表
+    const response = await getAlbumDetail(albumId)
     if (response.success) {
-      // 过滤出属于当前相册的图片
-      currentAlbumImages.value = response.data.filter(image =>
-        image.albums?.some(album => album.id === albumId)
-      )
+      currentAlbumImages.value = response.data.images || []
     }
   } catch (error) {
     console.error('获取相册图片失败:', error)

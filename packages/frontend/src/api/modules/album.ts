@@ -67,20 +67,47 @@ export const createAlbum = async (data: CreateAlbumRequest): Promise<CreateAlbum
 }
 
 /**
+ * 将后端返回的LocalImage转换为前端的ImageInfo
+ */
+const mapLocalImageToImageInfo = (item: any) => {
+  const normalizedPath = item.filePath.replace(/\\/g, '/');
+  const url = `file:///${normalizedPath}`;
+  return {
+    id: item.id,
+    filename: item.fileName,
+    url,
+    thumbnailUrl: url,
+    filePath: item.filePath,
+    fileSize: item.fileSize,
+    uploadTime: new Date(item.createdAt).toISOString(),
+    tags: item.tags || [],
+    title: item.title,
+    description: item.description,
+    width: item.width,
+    height: item.height,
+    takenTime: undefined,
+    albums: item.albums || []
+  };
+};
+
+/**
  * 获取相册详情
  */
 export const getAlbumDetail = async (albumId: string): Promise<AlbumDetailResponse> => {
   if (isElectron) {
     const result = await universalApi.backend.call('albums:get', { id: albumId });
     console.log('获取相册详情原始结果:', result);
-    // 后端直接返回相册对象，需要包装成前端期望的格式
+
+    // 转换图片数据格式
+    const albumDetail = {
+      ...result,
+      images: result.images ? result.images.map(mapLocalImageToImageInfo) : []
+    };
+
     return {
       success: true,
       message: 'ok',
-      data: {
-        ...result,
-        images: [] // 后端可能不返回图片列表，需要补充
-      }
+      data: albumDetail
     } as AlbumDetailResponse;
   }
 

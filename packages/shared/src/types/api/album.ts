@@ -16,10 +16,21 @@ export interface AlbumDetail extends AlbumInfo {
     filename: string;
     url: string;
     thumbnailUrl: string;
+    filePath?: string;
     fileSize: number;
     uploadTime: string;
-    title?: string;
     tags: string[];
+    title?: string;
+    description?: string;
+    width?: number;
+    height?: number;
+    takenTime?: string;
+    albums: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      createdAt: string;
+    }>;
   }>;
 }
 

@@ -682,7 +682,6 @@ const previewImage = (index: number) => {
 
 const saveImageInfo = async () => {
   if (!currentImage.value) return
-
   saving.value = true
   try {
     const response = await updateImageInfo(currentImage.value.id, {

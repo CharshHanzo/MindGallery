@@ -11,6 +11,12 @@ export interface LocalImage {
   hash?: string;
   metadata?: Record<string, any>;
   tags?: string[];
+  albums?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    createdAt: number;
+  }>;
 }
 
 export interface ListOptions {

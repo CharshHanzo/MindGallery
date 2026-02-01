@@ -263,7 +263,21 @@ export class SqliteClient {
       }
     }
 
-    // 如果有相册更新，这里可以添加相册处理逻辑
+    // 处理相册更新
+    if (data.albumIds !== undefined) {
+      // 1. 删除当前图片的所有相册关联
+      this.db.prepare('DELETE FROM album_images WHERE image_id = ?').run(id);
+      
+      // 2. 为每个相册创建新的关联
+      for (const albumId of data.albumIds) {
+        // 检查相册是否存在
+        const albumResult = this.db.prepare('SELECT id FROM albums WHERE id = ?').get(albumId) as any;
+        if (albumResult) {
+          // 创建图片-相册关联
+          this.db.prepare('INSERT OR IGNORE INTO album_images (album_id, image_id, created_at) VALUES (?, ?, ?)').run(albumId, id, now);
+        }
+      }
+    }
 
     // 返回更新后的图片
     return this.getImageById(id);
@@ -336,7 +350,23 @@ export class SqliteClient {
     const album = this.db.prepare('SELECT * FROM albums WHERE id = ?').get(id) as any;
     if (!album) return null;
     const count = this.db.prepare('SELECT COUNT(*) as count FROM album_images WHERE album_id = ?').get(id) as { count: number };
-    return { ...album, imageCount: count.count };
+    
+    // 获取相册中的图片
+    const images = this.db.prepare(`
+      SELECT i.*
+      FROM images i
+      JOIN album_images ai ON i.id = ai.image_id
+      WHERE ai.album_id = ?
+      ORDER BY ai.created_at DESC
+    `).all(id) as any[];
+    
+    const albumImages = images.map(image => this.mapRowToImage(image));
+    
+    return { 
+      ...album, 
+      imageCount: count.count,
+      images: albumImages
+    };
   }
 
   addImagesToAlbum(albumId: string, imageIds: string[]) {
@@ -482,6 +512,19 @@ export class SqliteClient {
       WHERE it.image_id = ?
     `).all(row.id).map((tag: any) => tag.name);
     
+    // 获取图片的相册信息
+    const albums = this.db.prepare(`
+      SELECT a.id, a.name, a.description, a.created_at
+      FROM albums a
+      JOIN album_images ai ON a.id = ai.album_id
+      WHERE ai.image_id = ?
+    `).all(row.id).map((album: any) => ({
+      id: album.id,
+      name: album.name,
+      description: album.description,
+      createdAt: album.created_at
+    }));
+    
     return {
       id: row.id,
       filePath: row.file_path,
@@ -494,7 +537,8 @@ export class SqliteClient {
       format: row.format,
       hash: row.hash,
       metadata,
-      tags
+      tags,
+      albums
     };
   }
 }
