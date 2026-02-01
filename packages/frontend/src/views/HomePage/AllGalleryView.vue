@@ -8,9 +8,10 @@
           <h1 class="page-title">
             <span v-show="!selectionMode">所有照片</span>
             <span v-show="selectionMode">
-              已选择 {{ selectedIds.size }} 张照片
+              已选择 {{ selectedImageIds.length }} 张照片
             </span>
           </h1>
+
           <div class="sort-control" @click="toggleSortOrder">
             <i class="fa-solid" :class="sortOrder === 'desc' ? 'fa-arrow-down-short-wide' : 'fa-arrow-up-wide-short'"></i>
             <span>{{ sortOrder === 'desc' ? '最新在前' : '最早在前' }}</span>
@@ -46,105 +47,24 @@
         </div>
 
         <!-- 图片列表 -->
-        <div v-loading="loading" class="gallery-content">
-          <div class="gallery-scroll-container">
-            <div v-if="images.length > 0" class="photo-grid" id="photo-grid">
-              <div
-                v-for="(image, index) in images"
-                :key="image.id"
-                class="photo-card"
-                :class="{ selected: isSelected(image.id) && selectionMode }"
-                @click="selectionMode ? toggleSelect(image.id) : previewImage(index)"
-              >
-                <el-image
-                  :src="image.thumbnailUrl || image.url"
-                  :alt="image.filename"
-                  fit="cover"
-                  class="gallery-image"
-                >
-                  <template #placeholder>
-                    <div class="image-placeholder">
-                      <el-icon class="is-loading"><Loading /></el-icon>
-                    </div>
-                  </template>
-                  <template #error>
-                    <div class="image-error">
-                      <el-icon><Picture /></el-icon>
-                    </div>
-                  </template>
-                </el-image>
+        <ImageGrid
+          :images="images"
+          :loading="loading"
+          :total="total"
+          :page="page"
+          :limit="limit"
+          :selection-mode="selectionMode"
+          @image-click="previewImage"
+          @selection-change="handleSelectionChange"
+          @page-change="handlePageChange"
+          @size-change="handleSizeChange"
+          @delete-image="handleDelete"
+          @batch-delete="deleteSelected"
+          @favorite-image="handleFavorite"
+          @batch-favorite="handleBatchFavorite"
+          @show-add-to-album="showAddToAlbumDialog = true"
+        />
 
-                <div class="select-overlay" v-if="selectionMode">
-                  <el-icon class="check-icon"><Check /></el-icon>
-                </div>
-
-                <div class="image-actions" @click.stop>
-                  <el-button
-                    :type="isFavorite(image) ? 'warning' : 'default'"
-                    circle
-                    size="small"
-                    :icon="Star"
-                    @click="handleFavorite(image)"
-                    :title="isFavorite(image) ? '取消收藏' : '收藏图片'"
-                  />
-                  <el-button
-                    type="danger"
-                    circle
-                    size="small"
-                    :icon="Delete"
-                    @click="handleDelete(image)"
-                    title="删除图片"
-                  />
-                </div>
-
-                <!-- 悬停显示信息 -->
-                <div class="image-overlay">
-                  <div class="image-info">
-                    <div class="image-name">{{ image.filename }}</div>
-                    <div class="image-meta">
-                      <span>{{ formatFileSize(image.fileSize) }}</span>
-                      <span v-if="image.tags && image.tags.length > 0">
-                        <el-tag size="small" type="info" effect="dark" class="count-tag">
-                          {{ image.tags.length }} 标签
-                        </el-tag>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 空状态 -->
-            <el-empty v-else description="暂无图片" />
-          </div>
-        </div>
-
-        <div class="foot-container">
-          <!-- 底部操作工具栏 -->
-          <div class="bottom-toolbar" v-if="selectionMode">
-            <div class="toolbar-content">
-              <div class="toolbar-actions">
-                <el-button type="primary" plain @click="toggleSelectAll">{{ isAllSelected ? '取消全选' : '全选' }}</el-button>
-                <el-button type="primary" plain :icon="CollectionTag" @click="showAddToAlbumDialog = true">添加到相册</el-button>
-                <el-button type="primary" plain :icon="Star" @click="handleBatchFavorite">收藏</el-button>
-                <el-button type="danger" :icon="Delete" @click="deleteSelected">删除</el-button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 分页 -->
-          <div class="pagination-container" v-if="total > 0">
-            <el-pagination
-              v-model:current-page="page"
-              v-model:page-size="limit"
-              :page-sizes="[20, 50, 100, 200]"
-              layout="total, sizes, prev, pager, next, jumper"
-              :total="total"
-              @size-change="handleSizeChange"
-              @current-change="handlePageChange"
-            />
-          </div>
-        </div>
       </div>
 
 
@@ -293,6 +213,7 @@ import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/
 import { getTagList } from '@/api/modules/tag'
 import { getAlbumList, createAlbum, addImagesToAlbum, removeImagesFromAlbum } from '@/api/modules/album'
 import { universalApi } from '@/api'
+import ImageGrid from '@/components/image-grid/ImageGrid.vue'
 
 // 注入共享状态
 interface SearchState {
@@ -535,19 +456,11 @@ const revokeBlobUrls = () => {
   createdBlobUrls.value = []
 }
 
-const selectedIds = ref<Set<string>>(new Set())
-const isSelected = (id: string) => selectedIds.value.has(id)
-const toggleSelect = (id: string) => {
-  const s = new Set(selectedIds.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  selectedIds.value = s
-}
-const deleteSelected = async () => {
-  if (selectedIds.value.size === 0) return
+const deleteSelected = async (ids: string[]) => {
+  if (ids.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
+      `确定要删除选中的 ${ids.length} 张图片吗？此操作不可恢复。`,
       '批量删除确认',
       {
         confirmButtonText: '删除',
@@ -555,9 +468,8 @@ const deleteSelected = async () => {
         type: 'warning',
       }
     )
-    const ids = Array.from(selectedIds.value)
     await deleteImages(ids)
-    images.value = images.value.filter(item => !selectedIds.value.has(item.id))
+    images.value = images.value.filter(item => !ids.includes(item.id))
     total.value = Math.max(0, total.value - ids.length)
     ElMessage.success('批量删除成功')
     toggleSelectionMode()
@@ -565,31 +477,6 @@ const deleteSelected = async () => {
     await fetchImages()
   } catch {
     // 忽略取消操作
-  }
-}
-
-// 计算属性：判断是否所有图片都被选中
-const isAllSelected = computed(() => {
-  return images.value.length > 0 && selectedIds.value.size === images.value.length
-})
-
-// 全选功能
-const selectAll = () => {
-  const allIds = new Set(images.value.map(image => image.id))
-  selectedIds.value = allIds
-}
-
-// 取消全选功能
-const deselectAll = () => {
-  selectedIds.value = new Set()
-}
-
-// 切换全选/取消全选
-const toggleSelectAll = () => {
-  if (isAllSelected.value) {
-    deselectAll()
-  } else {
-    selectAll()
   }
 }
 
@@ -622,15 +509,14 @@ const handleFavorite = async (image: ImageInfo) => {
 }
 
 // 处理批量收藏
-const handleBatchFavorite = async () => {
-  if (selectedIds.value.size === 0) return
+const handleBatchFavorite = async (ids: string[]) => {
+  if (ids.length === 0) return
 
   try {
     const favoriteAlbumId = await getOrCreateFavoriteAlbum()
-    const imageIds = Array.from(selectedIds.value)
 
-    await addImagesToAlbum(favoriteAlbumId, imageIds)
-    ElMessage.success(`已成功收藏 ${imageIds.length} 张图片`)
+    await addImagesToAlbum(favoriteAlbumId, ids)
+    ElMessage.success(`已成功收藏 ${ids.length} 张图片`)
 
     // 刷新图片列表
     await fetchImages()
@@ -643,14 +529,14 @@ const handleBatchFavorite = async () => {
 
 // 处理添加到相册
 const handleAddToAlbum = async () => {
-  if (selectedIds.value.size === 0) return
+  if (selectedImageIds.value.length === 0) return
   if (!selectedAlbumId.value) {
     ElMessage.warning('请选择相册')
     return
   }
 
   try {
-    const imageIds = Array.from(selectedIds.value)
+    const imageIds = selectedImageIds.value
     await addImagesToAlbum(selectedAlbumId.value, imageIds)
     ElMessage.success(`已成功添加 ${imageIds.length} 张图片到相册`)
 
@@ -667,17 +553,24 @@ const handleAddToAlbum = async () => {
 }
 
 // 预览图片
-const previewImage = (index: number) => {
-  const img = images.value[index]
-  currentImage.value = img
+const previewImage = (image: ImageInfo, index: number) => {
+  currentImage.value = image
 
   // 初始化表单数据
-  editingForm.filename = img.filename
-  editingForm.description = img.description || ''
-  editingForm.tags = img.tags ? [...img.tags] : []
-  editingForm.albumIds = img.albums ? img.albums.map(album => album.id) : []
+  editingForm.filename = image.filename
+  editingForm.description = image.description || ''
+  editingForm.tags = image.tags ? [...image.tags] : []
+  editingForm.albumIds = image.albums ? image.albums.map(album => album.id) : []
 
   detailDialogVisible.value = true
+}
+
+// 存储选中的图片ID
+const selectedImageIds = ref<string[]>([])
+
+// 处理选择变化
+const handleSelectionChange = (ids: string[]) => {
+  selectedImageIds.value = ids
 }
 
 const saveImageInfo = async () => {
@@ -891,172 +784,8 @@ main {
   margin-bottom: 24px;
 }
 
-/* --- 图片列表滚动容器 --- */
-.gallery-scroll-container {
-  max-height: calc(100vh - 280px);
-  overflow-y: auto;
-  padding-right: 8px;
+/* --- 图片网格样式已移至 ImageGrid 组件 --- */
 
-  /* 自定义滚动条样式 */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-  }
-}
-
-/* --- 照片网格 --- */
-.photo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-}
-
-.photo-card {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 6px;
-  overflow: hidden;
-  background-color: #f5f5f7;
-  cursor: pointer;
-  transition: transform 0.2s ease, opacity 0.3s ease;
-}
-
-.gallery-image {
-  width: 100%;
-  height: 100%;
-  display: block;
-  transition: transform 0.5s;
-}
-
-.photo-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-
-  .image-overlay {
-    opacity: 1;
-  }
-
-  .image-actions {
-    opacity: 1;
-  }
-
-  .gallery-image {
-    transform: scale(1.05);
-  }
-}
-
-/* 选择态 */
-.selecting .photo-card {
-  transform: scale(0.92);
-}
-
-.select-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid white;
-  background: rgba(0, 0, 0, 0.2);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 12px;
-  z-index: 10;
-}
-
-.selecting .select-overlay {
-  display: flex;
-}
-
-.photo-card.selected .select-overlay {
-  background: #409EFF;
-}
-
-.image-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
-  transition: opacity 0.3s;
-  z-index: 10;
-}
-
-.image-placeholder, .image-error {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #f0f2f5;
-  color: #909399;
-  font-size: 24px;
-}
-
-.image-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-  padding: 2rem 1rem 1rem;
-  opacity: 0;
-  transition: opacity 0.3s;
-  color: white;
-
-  .image-info {
-    .image-name {
-      font-weight: 500;
-      margin-bottom: 0.25rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .image-meta {
-      font-size: 0.75rem;
-      opacity: 0.8;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-  }
-}
-
-.foot-container {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-}
-
-/* --- 分页 --- */
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  padding: 1rem;
-  flex-shrink: 0;
-  z-index: 10;
-}
 
 /* --- 图片详情对话框 --- */
 .image-detail-dialog {
@@ -1113,121 +842,9 @@ main {
   }
 }
 
-/* --- 底部操作工具栏 --- */
-.bottom-toolbar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-around;
-  position: relative;
-  background-color: white;
-  transform: translateY(30%);
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  animation: slideUp 0.2s ease-out;
-  border-radius: 12px;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(20);
-  }
-}
-
-.toolbar-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 16px 20px;
-
-}
-
-.selection-count {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-primary);
-  font-weight: 500;
-  margin-right: 12px;
-  .count-icon {
-    font-size: 16px;
-    color: var(--accent-blue);
-  }
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-
-  .el-button {
-    font-size: 11px;
-    font-weight: 500;
-    padding: 8px 16px;
-    background: transparent !important;
-
-    .el-icon {
-      margin-right: 4px;
-    }
-
-    &.el-button--primary {
-      color: #007aff;
-      border-color: #007aff;
-
-      .el-icon {
-        color: #007aff;
-      }
-
-      &:hover {
-        background: rgba(0, 122, 255, 0.1) !important;
-      }
-    }
-
-    &.el-button--danger {
-      color: #ff3b30;
-      border-color: #ff3b30;
-
-      .el-icon {
-        color: #ff3b30;
-      }
-
-      &:hover {
-        background: rgba(255, 59, 48, 0.1) !important;
-      }
-    }
-  }
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .toolbar-content {
-    padding: 12px 20px;
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .selection-count {
-    justify-content: center;
-  }
-
-  .toolbar-actions {
-    justify-content: space-around;
-  }
-}
-
 /* 调整主内容区的底部边距 */
 .scroll-content {
   padding-bottom: 60px;
 }
 
-/* 调整图片网格的最大高度 */
-.gallery-scroll-container {
-  max-height: calc(100vh - 280px);
-}
 </style>

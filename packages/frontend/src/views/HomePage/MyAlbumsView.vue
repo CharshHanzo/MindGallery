@@ -136,31 +136,26 @@
 
           <!-- 相册中的图片 -->
           <div class="album-images">
-            <div v-if="currentAlbumImages.length > 0" class="images-grid">
-              <div
-                v-for="image in currentAlbumImages"
-                :key="image.id"
-                class="image-card"
-              >
-                <el-image
-                  :src="image.thumbnailUrl || image.url"
-                  fit="cover"
-                  class="grid-image"
+            <ImageGrid
+              :images="currentAlbumImages"
+              :loading="loadingImages"
+              :total="0"
+              :selection-mode="false"
+              @image-click="handleImageClick"
+            >
+              <template #image-actions="{ image }">
+                <el-button
+                  type="danger"
+                  circle
+                  size="small"
+                  :icon="Delete"
+                  @click="removeImageFromAlbum(image)"
+                  title="从相册中移除"
                 />
-                <div class="image-actions" @click.stop>
-                  <el-button
-                    type="danger"
-                    circle
-                    size="small"
-                    :icon="Delete"
-                    @click="removeImageFromAlbum(image)"
-                    title="从相册中移除"
-                  />
-                </div>
-              </div>
-            </div>
-            <el-empty v-else description="相册中暂无照片" />
+              </template>
+            </ImageGrid>
           </div>
+
         </div>
       </el-dialog>
 
@@ -226,6 +221,7 @@ import type { AlbumInfo, ImageInfo } from '@mindgallery/shared/src/types/api'
 import { getAlbumList, createAlbum, updateAlbum as updateAlbumApi, deleteAlbum as deleteAlbumApi, addImagesToAlbum as addImagesToAlbumApi, removeImagesFromAlbum, getAlbumDetail } from '@/api/modules/album'
 import { getImageList } from '@/api/modules/image'
 import { universalApi } from '@/api'
+import ImageGrid from '@/components/image-grid/ImageGrid.vue'
 
 // 状态
 const loading = ref(false)
@@ -419,6 +415,13 @@ const removeImageFromAlbum = async (image: ImageInfo) => {
     ElMessage.error('移除图片失败')
   }
 }
+
+// 处理图片点击
+const handleImageClick = (image: ImageInfo, index: number) => {
+  // 可以在这里添加图片预览逻辑
+  console.log('Image clicked:', image)
+}
+
 
 // 显示添加图片对话框
 const showAddImagesDialogToAlbum = () => {
@@ -685,66 +688,8 @@ main {
   margin-bottom: 4px;
 }
 
-.album-images {
-  margin-top: 20px;
-}
+/* 相册图片样式已移至 ImageGrid 组件 */
 
-.images-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.image-card {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 6px;
-  overflow: hidden;
-  background-color: #f5f5f7;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.image-card:hover {
-  transform: translateY(-2px);
-}
-
-.image-card.selected {
-  outline: 2px solid var(--accent-blue);
-  outline-offset: 2px;
-}
-
-.grid-image {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.select-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid white;
-  background: rgba(0, 0, 0, 0.2);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 12px;
-  z-index: 10;
-}
-
-.image-card:hover .select-overlay,
-.image-card.selected .select-overlay {
-  display: flex;
-}
-
-.image-card.selected .select-overlay {
-  background: var(--accent-blue);
-}
 
 /* --- 添加图片对话框 --- */
 .add-images-dialog {
