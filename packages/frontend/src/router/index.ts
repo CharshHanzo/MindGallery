@@ -28,6 +28,11 @@ const router = createRouter({
           component: () => import('../views/HomePage/MyAlbumsView.vue'),
         },
         {
+          path: '/albumDetail/:albumId',
+          name: 'albumDetail',
+          component: () => import('../views/HomePage/AlbumDetailView.vue'),
+        },
+        {
           path: '/favorites',
           name: 'favorites',
           component: () => import('../views/HomePage/FavoritesView.vue'),

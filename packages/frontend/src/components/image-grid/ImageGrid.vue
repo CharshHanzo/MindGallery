@@ -208,7 +208,7 @@ const toggleSelectAll = () => {
 
 const deleteSelected = async () => {
   if (selectedIds.value.size === 0) return
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedIds.value.size} 张图片吗？此操作不可恢复。`,
@@ -280,7 +280,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* --- 图片列表滚动容器 --- */
 .gallery-scroll-container {
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 320px);
   overflow-y: auto;
   padding-right: 8px;
 
@@ -538,6 +538,6 @@ const formatFileSize = (bytes: number): string => {
 
 /* 调整图片网格的最大高度 */
 .gallery-scroll-container {
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 320px);
 }
 </style>

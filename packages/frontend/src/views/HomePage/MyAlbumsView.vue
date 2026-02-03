@@ -114,50 +114,7 @@
         </template>
       </el-dialog>
 
-      <!-- 相册详情对话框 -->
-      <el-dialog
-        v-model="showAlbumDetailDialog"
-        :title="currentAlbum?.name || '相册详情'"
-        width="80%"
-        top="5vh"
-        destroy-on-close
-      >
-        <div v-if="currentAlbum" class="album-detail">
-          <div class="album-detail-header">
-            <div class="album-detail-info">
-              <h2>{{ currentAlbum.name }}</h2>
-              <p v-if="currentAlbum.description">{{ currentAlbum.description }}</p>
-              <p>{{ currentAlbum.imageCount }} 张照片</p>
-            </div>
-            <div class="album-detail-actions">
-              <el-button type="primary" :icon="Plus" @click="showAddImagesDialog = true">添加照片</el-button>
-            </div>
-          </div>
 
-          <!-- 相册中的图片 -->
-          <div class="album-images">
-            <ImageGrid
-              :images="currentAlbumImages"
-              :loading="loadingImages"
-              :total="0"
-              :selection-mode="false"
-              @image-click="handleImageClick"
-            >
-              <template #image-actions="{ image }">
-                <el-button
-                  type="danger"
-                  circle
-                  size="small"
-                  :icon="Delete"
-                  @click="removeImageFromAlbum(image)"
-                  title="从相册中移除"
-                />
-              </template>
-            </ImageGrid>
-          </div>
-
-        </div>
-      </el-dialog>
 
       <!-- 添加图片到相册对话框 -->
       <el-dialog
@@ -215,6 +172,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Collection, Plus, Edit, Delete, Check, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AlbumInfo, ImageInfo } from '@mindgallery/shared/src/types/api'
@@ -222,6 +180,9 @@ import { getAlbumList, createAlbum, updateAlbum as updateAlbumApi, deleteAlbum a
 import { getImageList } from '@/api/modules/image'
 import { universalApi } from '@/api'
 import ImageGrid from '@/components/image-grid/ImageGrid.vue'
+
+// 路由
+const router = useRouter()
 
 // 状态
 const loading = ref(false)
@@ -237,7 +198,6 @@ const imageSearchQuery = ref('')
 // 对话框状态
 const showCreateAlbumDialog = ref(false)
 const showEditAlbumDialog = ref(false)
-const showAlbumDetailDialog = ref(false)
 const showAddImagesDialog = ref(false)
 
 // 表单数据
@@ -376,10 +336,7 @@ const deleteAlbum = (album: AlbumInfo) => {
 
 // 查看相册详情
 const viewAlbum = async (album: AlbumInfo) => {
-  currentAlbum.value = album
-  // 获取相册中的图片
-  await fetchAlbumImages(album.id)
-  showAlbumDetailDialog.value = true
+  router.push(`/albumDetail/${album.id}`)
 }
 
 // 获取相册中的图片
