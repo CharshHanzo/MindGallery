@@ -3,19 +3,36 @@
     <!-- 主内容区 -->
     <main id="main-container" :class="{ selecting: selectionMode }">
       <div class="scroll-content">
-        <!-- 标题栏 -->
-        <div class="title-bar">
-          <h1 class="page-title">
-            <span v-show="!selectionMode">所有照片</span>
-            <span v-show="selectionMode">
-              已选择 {{ selectedImageIds.length }} 张照片
-            </span>
-          </h1>
-
-          <SortControl
-            v-model="sortOrder"
-            @sort-change="handleSortChange"
-          />
+        <!-- 页面头部 -->
+        <div class="page-header">
+          <div class="header-top">
+            <h1 class="page-title">
+              <span v-show="!selectionMode">所有照片</span>
+              <span v-show="selectionMode">
+                已选择 {{ selectedImageIds.length }} 张照片
+              </span>
+            </h1>
+            <div class="header-actions">
+              <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;" @click="router.push('/upload')">
+                <el-icon><Plus /></el-icon>
+              </div>
+              <el-button class="text-btn" @click="toggleSelectionMode">
+                {{ selectionMode ? '取消' : '选择' }}
+              </el-button>
+            </div>
+          </div>
+          <div class="header-controls">
+            <!-- 搜索控制 -->
+            <SearchControl
+              v-model="searchQuery"
+              @search="handleSearch"
+            />
+            <!-- 排序控制 -->
+            <SortControl
+              v-model="sortOrder"
+              @sort-change="handleSortChange"
+            />
+          </div>
         </div>
 
         <div class="title-divider"></div>
@@ -119,7 +136,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, inject, watch, computed } from 'vue'
-import { Picture, Loading, Delete, Folder, Check, CollectionTag, Star } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Picture, Loading, Delete, Folder, Check, CollectionTag, Star, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ImageInfo, TagInfo, AlbumInfo } from '@mindgallery/shared/src/types/api'
 import { getImageList, updateImageInfo, deleteImage, deleteImages } from '@/api/modules/image'
@@ -131,6 +149,10 @@ import SortControl from '@/components/gallery-controls/SortControl.vue'
 import TagFilter from '@/components/gallery-controls/TagFilter.vue'
 import SelectionToolbar from '@/components/gallery-controls/SelectionToolbar.vue'
 import ImageDetailDialog from '@/components/gallery-controls/ImageDetailDialog.vue'
+import SearchControl from '@/components/gallery-controls/SearchControl.vue'
+
+// 路由
+const router = useRouter()
 
 // 注入共享状态
 interface SearchState {
@@ -142,7 +164,6 @@ interface SearchState {
 const searchState = inject<SearchState | undefined>('searchState')
 const searchQuery = searchState?.searchQuery || ref('')
 const selectionMode = searchState?.selectionMode || ref(false)
-const toggleSelectionMode = searchState?.toggleSelectionMode || (() => {})
 
 // 状态
 const loading = ref(false)
@@ -296,6 +317,18 @@ const handleTagChange = (tags: string[]) => {
 const handleSortChange = () => {
   page.value = 1
   fetchImages()
+}
+
+const handleSearch = () => {
+  page.value = 1
+  fetchImages()
+}
+
+const toggleSelectionMode = () => {
+  selectionMode.value = !selectionMode.value
+  if (!selectionMode.value) {
+    selectedImageIds.value = []
+  }
 }
 
 const toggleSortOrder = () => {
@@ -694,18 +727,71 @@ main {
   padding: 10px 40px 100px;
 }
 
-/* --- 标题栏 --- */
-.title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding-bottom: 12px;
+/* --- 页面头部 --- */
+.page-header {
+  margin-bottom: 20px;
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .text-btn {
+      background: none;
+      border: none;
+      color: var(--accent-blue);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+
+      &:hover {
+        background-color: rgba(0, 122, 255, 0.1);
+      }
+    }
+  }
 }
 
-.page-title {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header {
+    .header-top {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .header-controls {
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .page-title {
+      font-size: 24px;
+    }
+  }
 }
 
 .sort-control {

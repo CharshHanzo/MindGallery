@@ -1,50 +1,59 @@
 <template>
   <div class="album-detail-view">
     <!-- 主内容区 -->
-    <main id="main-container">
+    <main id="main-container" :class="{ selecting: selectionMode }">
       <div class="scroll-content">
-        <!-- 标题栏 -->
-        <div class="title-bar">
-          <div class="title-left">
-            <el-button type="text" @click="goBack">
+        <!-- 页面头部 -->
+        <div class="page-header">
+          <div class="header-top">
+            <el-button type="text" @click="goBack" class="back-button">
               <el-icon><ArrowLeft /></el-icon>
               <span>返回相册列表</span>
             </el-button>
-            <h1 class="page-title">{{ currentAlbum?.name || '相册详情' }}</h1>
           </div>
-          <div class="title-actions">
+          <div class="header-main">
+            <h1 class="page-title">
+              <span v-show="!selectionMode">{{ currentAlbum?.name || '相册详情' }}</span>
+              <span v-show="selectionMode">
+                已选择 {{ selectedImageIds.length }} 张照片
+              </span>
+            </h1>
+            <div class="header-actions">
+              <el-button type="primary" :icon="Plus" @click="showAddImagesDialog = true">添加图片</el-button>
+              <el-button class="text-btn" @click="toggleSelectionMode">
+                {{ selectionMode ? '取消' : '选择' }}
+              </el-button>
+            </div>
+          </div>
+          <div class="header-controls">
+            <!-- 搜索控制 -->
+            <SearchControl
+              v-model="searchQuery"
+              @search="handleSearch"
+            />
+            <!-- 排序控制 -->
             <SortControl
               v-model="sortOrder"
               @sort-change="handleSortChange"
             />
-            <el-button type="primary" :icon="Plus" @click="showAddImagesDialog = true">添加图片</el-button>
           </div>
         </div>
 
         <div class="title-divider"></div>
 
-        <!-- 相册详情信息 -->
-        <div v-if="currentAlbum" class="album-detail-info">
-          <div class="album-meta">
-            <span>{{ currentAlbumImages.length }} 张照片</span>
-            <span v-if="currentAlbum.description">{{ currentAlbum.description }}</span>
-          </div>
-        </div>
-
         <!-- 标签筛选 -->
         <TagFilter
           v-model="selectedTags"
           :available-tags="availableTags"
-          :loading="loadingTags"
+          :loading="false"
           @tag-change="handleTagChange"
         />
 
         <!-- 多选操作工具栏 -->
         <SelectionToolbar
           :selection-mode="selectionMode"
-          :selected-ids="selectedIds"
-          :selected-count="selectedIds.length"
-          :show-add-to-album="false"
+          :selected-ids="selectedImageIds"
+          :selected-count="selectedImageIds.length"
           @batch-favorite="handleBatchFavorite"
           @cancel-selection="toggleSelectionMode"
         >
@@ -59,30 +68,40 @@
           </template>
         </SelectionToolbar>
 
-        <!-- 相册图片 -->
-        <div v-loading="loadingImages" class="album-images">
-          <ImageGrid
-            v-if="filteredImages.length > 0"
-            :images="filteredImages"
-            :loading="loadingImages"
-            :total="0"
-            :selection-mode="selectionMode"
-            @image-click="handleImageClick"
-            @selection-change="handleSelectionChange"
-          >
-            <template #image-actions="{ image }">
-              <el-button
-                type="danger"
-                circle
-                size="small"
-                :icon="Delete"
-                @click="removeImageFromAlbum(image)"
-                title="从相册中移除"
-              />
-            </template>
-          </ImageGrid>
-          <el-empty v-else description="相册中暂无图片" />
+        <!-- 相册详情信息 -->
+        <div v-if="currentAlbum" class="album-detail-info">
+          <div class="album-meta">
+            <span>{{ currentAlbumImages.length }} 张照片</span>
+            <span v-if="currentAlbum.description">{{ currentAlbum.description }}</span>
+          </div>
         </div>
+
+        <!-- 图片列表 -->
+        <ImageGrid
+          :images="filteredImages"
+          :loading="loadingImages"
+          :total="currentAlbumImages.length"
+          :page="page"
+          :limit="limit"
+          :selection-mode="selectionMode"
+          @image-click="previewImage"
+          @selection-change="handleSelectionChange"
+          @page-change="handlePageChange"
+          @size-change="handleSizeChange"
+          @favorite-image="handleFavorite"
+          @batch-favorite="handleBatchFavorite"
+        >
+          <template #image-actions="{ image }">
+            <el-button
+              type="danger"
+              circle
+              size="small"
+              :icon="Delete"
+              @click="removeImageFromAlbum(image)"
+              title="从相册中移除"
+            />
+          </template>
+        </ImageGrid>
 
         <!-- 添加图片对话框 -->
         <el-dialog
@@ -108,7 +127,7 @@
                 v-for="image in availableImages"
                 :key="image.id"
                 class="image-card"
-                :class="{ selected: selectedImageIds.has(image.id) }"
+                :class="{ selected: selectedImageIdsSet.has(image.id) }"
                 @click="toggleImageSelection(image.id)"
               >
                 <el-image
@@ -126,7 +145,7 @@
           <template #footer>
             <span class="dialog-footer">
               <el-button @click="showAddImagesDialog = false">取消</el-button>
-              <el-button type="primary" @click="addImagesToAlbum" :loading="saving">添加 {{ selectedImageIds.size }} 张照片</el-button>
+              <el-button type="primary" @click="handleAddImagesToAlbum" :loading="saving">添加 {{ selectedImageIdsSet.size }} 张照片</el-button>
             </span>
           </template>
         </el-dialog>
@@ -153,39 +172,31 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Plus, Check, Search, Delete } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Check, Search, Delete, Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { AlbumInfo, ImageInfo } from '@mindgallery/shared/src/types/api'
 import { getAlbumDetail, addImagesToAlbum as addImagesToAlbumApi, removeImagesFromAlbum } from '@/api/modules/album'
 import { getImageList } from '@/api/modules/image'
+import { getAlbumList, createAlbum } from '@/api/modules/album'
 import ImageGrid from '@/components/image-grid/ImageGrid.vue'
 import SortControl from '@/components/gallery-controls/SortControl.vue'
 import TagFilter from '@/components/gallery-controls/TagFilter.vue'
 import SelectionToolbar from '@/components/gallery-controls/SelectionToolbar.vue'
 import ImageDetailDialog from '@/components/gallery-controls/ImageDetailDialog.vue'
+import SearchControl from '@/components/gallery-controls/SearchControl.vue'
 
 // 路由
 const route = useRoute()
 const router = useRouter()
 
-// 注入共享状态
-interface SearchState {
-  searchQuery: any
-  selectionMode: any
-  toggleSelectionMode: () => void
-}
-
-const searchState = inject<SearchState>('searchState')
-
 // 状态
 const loading = ref(false)
 const saving = ref(false)
 const loadingImages = ref(false)
-const loadingTags = ref(false)
 const currentAlbum = ref<AlbumInfo | null>(null)
 const currentAlbumImages = ref<ImageInfo[]>([])
 const availableImages = ref<ImageInfo[]>([])
-const selectedImageIds = ref<Set<string>>(new Set())
+const selectedImageIdsSet = ref<Set<string>>(new Set())
 const imageSearchQuery = ref('')
 
 // 排序和筛选状态
@@ -193,9 +204,16 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 const selectedTags = ref<string[]>([])
 const availableTags = ref<any[]>([])
 
+// 搜索状态
+const searchQuery = ref('')
+
 // 多选状态
 const selectionMode = ref(false)
-const selectedIds = ref<string[]>([])
+const selectedImageIds = ref<string[]>([])
+
+// 分页状态
+const page = ref(1)
+const limit = ref(50)
 
 // 图片详情状态
 const detailDialogVisible = ref(false)
@@ -212,6 +230,16 @@ const goBack = () => {
 // 计算属性：筛选和排序后的图片
 const filteredImages = computed(() => {
   let result = [...currentAlbumImages.value]
+
+  // 搜索筛选
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(image =>
+      image.filename.toLowerCase().includes(query) ||
+      image.description?.toLowerCase().includes(query) ||
+      image.tags?.some(tag => tag.toLowerCase().includes(query))
+    )
+  }
 
   // 标签筛选
   if (selectedTags.value.length > 0) {
@@ -238,9 +266,17 @@ const handleSortChange = () => {
   console.log('Sort changed:', sortOrder.value)
 }
 
+// 处理搜索
+const handleSearch = () => {
+  page.value = 1
+  // 搜索通过computed属性自动处理
+  console.log('Search:', searchQuery.value)
+}
+
 // 处理标签变化
 const handleTagChange = (tags: string[]) => {
   selectedTags.value = tags
+  page.value = 1
   // 标签筛选通过computed属性自动处理
   console.log('Tags changed:', tags)
 }
@@ -249,24 +285,37 @@ const handleTagChange = (tags: string[]) => {
 const toggleSelectionMode = () => {
   selectionMode.value = !selectionMode.value
   if (!selectionMode.value) {
-    selectedIds.value = []
+    selectedImageIds.value = []
   }
   console.log('Selection mode:', selectionMode.value)
 }
 
 // 处理选择变化
 const handleSelectionChange = (ids: string[]) => {
-  selectedIds.value = ids
+  selectedImageIds.value = ids
   console.log('Selected ids:', ids)
+}
+
+// 处理分页变化
+const handlePageChange = (val: number) => {
+  page.value = val
+  console.log('Page changed:', val)
+}
+
+// 处理每页数量变化
+const handleSizeChange = (val: number) => {
+  limit.value = val
+  page.value = 1
+  console.log('Size changed:', val)
 }
 
 // 批量从相册移除
 const removeFromAlbum = async () => {
-  if (!currentAlbum.value || selectedIds.value.length === 0) return
+  if (!currentAlbum.value || selectedImageIds.value.length === 0) return
 
   try {
-    await removeImagesFromAlbum(currentAlbum.value.id, selectedIds.value)
-    ElMessage.success(`已从相册移除 ${selectedIds.value.length} 张图片`)
+    await removeImagesFromAlbum(currentAlbum.value.id, selectedImageIds.value)
+    ElMessage.success(`已从相册移除 ${selectedImageIds.value.length} 张图片`)
     // 刷新相册图片
     await fetchAlbumDetail()
     // 退出选择模式
@@ -277,25 +326,86 @@ const removeFromAlbum = async () => {
   }
 }
 
-// 批量收藏
-const handleBatchFavorite = async () => {
-  // 实现批量收藏逻辑
-  console.log('Batch favorite:', selectedIds.value)
-  ElMessage.success(`已收藏 ${selectedIds.value.length} 张图片`)
-  toggleSelectionMode()
+// 检查图片是否已收藏
+const isFavorite = (image: ImageInfo): boolean => {
+  return image.albums?.some(album => album.name === '个人收藏') || false
 }
 
-// 处理图片点击
-const handleImageClick = (image: ImageInfo, index: number) => {
-  if (selectionMode.value) {
-    // 在选择模式下，点击应该是选择/取消选择图片
-    // 这个逻辑由ImageGrid组件内部处理
-    console.log('Image clicked in selection mode:', image.id)
-  } else {
-    // 在非选择模式下，点击应该是查看图片详情
-    currentImage.value = image
-    detailDialogVisible.value = true
+// 处理单个图片的收藏/取消收藏
+const handleFavorite = async (image: ImageInfo) => {
+  try {
+    const favoriteAlbumId = await getOrCreateFavoriteAlbum()
+
+    if (isFavorite(image)) {
+      // 取消收藏
+      await removeImagesFromAlbum(favoriteAlbumId, [image.id])
+      ElMessage.success('已取消收藏')
+    } else {
+      // 添加收藏
+      await addImagesToAlbumApi(favoriteAlbumId, [image.id])
+      ElMessage.success('收藏成功')
+    }
+
+    // 刷新相册图片
+    await fetchAlbumDetail()
+  } catch (error) {
+    console.error('收藏操作失败:', error)
+    ElMessage.error('收藏操作失败，请稍后重试')
   }
+}
+
+// 获取或创建收藏相册
+const getOrCreateFavoriteAlbum = async (): Promise<string> => {
+  try {
+    // 先获取相册列表
+    const albumsResponse = await getAlbumList()
+    if (!albumsResponse.success) {
+      throw new Error('获取相册列表失败')
+    }
+
+    // 查找是否已存在收藏相册
+    const favoriteAlbum = albumsResponse.data.find(album => album.name === '个人收藏')
+
+    if (favoriteAlbum) {
+      return favoriteAlbum.id
+    }
+
+    // 如果不存在，创建收藏相册
+    const createResponse = await createAlbum({ name: '个人收藏', description: '用户收藏的图片' })
+    if (!createResponse.success) {
+      throw new Error('创建收藏相册失败')
+    }
+
+    return createResponse.data.id
+  } catch (error) {
+    console.error('获取或创建收藏相册失败:', error)
+    throw error
+  }
+}
+
+// 批量收藏
+const handleBatchFavorite = async () => {
+  if (selectedImageIds.value.length === 0) return
+
+  try {
+    const favoriteAlbumId = await getOrCreateFavoriteAlbum()
+
+    await addImagesToAlbumApi(favoriteAlbumId, selectedImageIds.value)
+    ElMessage.success(`已成功收藏 ${selectedImageIds.value.length} 张图片`)
+
+    // 刷新相册图片
+    await fetchAlbumDetail()
+    toggleSelectionMode()
+  } catch (error) {
+    console.error('批量收藏失败:', error)
+    ElMessage.error('批量收藏失败，请稍后重试')
+  }
+}
+
+// 预览图片
+const previewImage = (image: ImageInfo, index: number) => {
+  currentImage.value = image
+  detailDialogVisible.value = true
 }
 
 // 处理保存图片信息
@@ -307,6 +417,8 @@ const handleSaveImage = async (image: ImageInfo, formData: any) => {
     console.log('Save image:', image.id, formData)
     ElMessage.success('保存成功')
     detailDialogVisible.value = false
+    // 刷新相册图片
+    await fetchAlbumDetail()
   } catch (error) {
     console.error('保存失败:', error)
     ElMessage.error('保存失败')
@@ -323,6 +435,8 @@ const handleDeleteFromDialog = (image: ImageInfo) => {
   console.log('Delete image from dialog:', image.id)
   ElMessage.success('图片已删除')
   detailDialogVisible.value = false
+  // 刷新相册图片
+  fetchAlbumDetail()
 }
 
 // 在模态框中打开文件夹
@@ -397,10 +511,6 @@ const initializeTags = () => {
   console.log('Initialized tags:', availableTags.value)
 }
 
-
-
-
-
 // 从相册中移除图片
 const removeImageFromAlbum = async (image: ImageInfo) => {
   if (!currentAlbum.value) return
@@ -414,16 +524,6 @@ const removeImageFromAlbum = async (image: ImageInfo) => {
     console.error('移除图片失败:', error)
     ElMessage.error('移除图片失败')
   }
-}
-
-// 显示添加图片对话框
-const showAddImagesDialogToAlbum = () => {
-  if (!currentAlbum.value) return
-
-  selectedImageIds.value = new Set()
-  imageSearchQuery.value = ''
-  fetchAvailableImages()
-  showAddImagesDialog.value = true
 }
 
 // 获取可用图片
@@ -444,22 +544,22 @@ const fetchAvailableImages = async () => {
 
 // 切换图片选择
 const toggleImageSelection = (imageId: string) => {
-  const newSet = new Set(selectedImageIds.value)
+  const newSet = new Set(selectedImageIdsSet.value)
   if (newSet.has(imageId)) {
     newSet.delete(imageId)
   } else {
     newSet.add(imageId)
   }
-  selectedImageIds.value = newSet
+  selectedImageIdsSet.value = newSet
 }
 
 // 添加图片到相册
-const addImagesToAlbum = async () => {
-  if (!currentAlbum.value || selectedImageIds.value.size === 0) return
+const handleAddImagesToAlbum = async () => {
+  if (!currentAlbum.value || selectedImageIdsSet.value.size === 0) return
 
   saving.value = true
   try {
-    const imageIds = Array.from(selectedImageIds.value)
+    const imageIds = Array.from(selectedImageIdsSet.value)
     const response = await addImagesToAlbumApi(currentAlbum.value.id, imageIds)
     if (response.success) {
       ElMessage.success(`已成功添加 ${imageIds.length} 张照片到相册`)
@@ -467,7 +567,7 @@ const addImagesToAlbum = async () => {
       // 刷新相册图片
       await fetchAlbumDetail()
       // 重置选择
-      selectedImageIds.value = new Set()
+      selectedImageIdsSet.value = new Set()
     }
   } catch (error) {
     console.error('添加图片失败:', error)
@@ -520,25 +620,75 @@ main {
   padding: 10px 40px 100px;
 }
 
-/* --- 标题栏 --- */
-.title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+/* --- 页面头部 --- */
+.page-header {
+
+
+  .header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .text-btn {
+      background: none;
+      border: none;
+      color: var(--accent-blue);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+
+      &:hover {
+        background-color: rgba(0, 122, 255, 0.1);
+      }
+    }
+  }
+
+  .back-button {
+    margin-bottom: 8px;
+  }
 }
 
-.title-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header {
+    .header-main {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
 
-.page-title {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+    .header-controls {
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .page-title {
+      font-size: 24px;
+    }
+  }
 }
 
 .title-divider {
@@ -549,7 +699,7 @@ main {
 
 /* --- 相册详情信息 --- */
 .album-detail-info {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .album-meta {
@@ -558,11 +708,6 @@ main {
   margin-bottom: 16px;
   display: flex;
   gap: 24px;
-}
-
-/* --- 相册图片 --- */
-.album-images {
-  margin-top: 24px;
 }
 
 /* --- 添加图片对话框 --- */
@@ -636,20 +781,10 @@ main {
     padding: 10px 20px 100px;
   }
 
-  .title-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
   .title-left {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-  }
-
-  .page-title {
-    font-size: 24px;
   }
 
   .album-meta {
@@ -661,4 +796,10 @@ main {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
 }
+
+/* 调整主内容区的底部边距 */
+.scroll-content {
+  padding-bottom: 60px;
+}
+
 </style>

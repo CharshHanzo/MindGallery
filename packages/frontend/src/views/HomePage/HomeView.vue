@@ -69,35 +69,9 @@ provide('searchState', {
 
     <!-- 主内容区 -->
     <main>
-      <!-- 照片墙部分 -->
+      <!-- 动态内容区 -->
       <div class="moments-content">
-        <!-- 共享头部 -->
-        <div class="content-header">
-          <div class="search-wrapper">
-            <el-icon class="search-icon"><Search /></el-icon>
-            <el-input
-              v-model="searchQuery"
-              placeholder="搜索照片..."
-              class="search-input"
-              clearable
-              @keyup.enter="handleSearch"
-              @clear="handleSearch"
-            >
-            </el-input>
-          </div>
-          <div class="header-actions">
-            <div id="btn-add" style="color: var(--accent-blue); font-size: 20px; cursor: pointer; padding: 4px;" @click="router.push('/upload')">
-              <el-icon><Plus /></el-icon>
-            </div>
-            <el-button class="text-btn" @click="toggleSelectionMode">
-              {{ selectionMode ? '取消' : '选择' }}
-            </el-button>
-          </div>
-        </div>
-        <!-- 动态内容区 -->
-        <div class="content-body">
-          <router-view />
-        </div>
+        <router-view />
       </div>
     </main>
   </div>
@@ -196,120 +170,11 @@ provide('searchState', {
     // 照片墙内容区域
     .moments-content {
       flex: 1;
-      margin: 0 20px 20px;
+      margin: 0;
       background: white;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-
-      .content-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px;
-        margin-bottom: 0;
-
-        .search-wrapper {
-          position: relative;
-          width: 380px;
-
-          .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            font-size: 14px;
-            z-index: 1;
-          }
-
-          .search-input {
-            width: 100% !important;
-            background-color: #f2f2f7 !important;
-            border: none !important;
-            padding: 8px 12px 8px 0 !important;
-            border-radius: 10px !important;
-            font-size: 14px !important;
-            outline: none !important;
-            box-shadow: none !important;
-            height: auto !important;
-            line-height: normal !important;
-            transition: none !important;
-          }
-
-          .search-input:hover,
-          .search-input:focus {
-            background-color: #f2f2f7 !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
-          }
-
-          /* 覆盖 Element Plus 输入框样式 */
-          :deep(.el-input__wrapper) {
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-          }
-
-          :deep(.el-input__inner) {
-            background-color: #f2f2f7 !important;
-            border: none !important;
-            padding: 8px 12px 8px 36px !important;
-            border-radius: 10px !important;
-            font-size: 14px !important;
-            outline: none !important;
-            box-shadow: none !important;
-            height: auto !important;
-            line-height: normal !important;
-          }
-
-          :deep(.el-input__inner:hover),
-          :deep(.el-input__inner:focus) {
-            background-color: #f2f2f7 !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
-          }
-
-          /* 覆盖清除按钮样式 */
-          :deep(.el-input__clear) {
-            color: var(--text-secondary) !important;
-            font-size: 14px !important;
-          }
-
-          :deep(.el-input__clear:hover) {
-            color: var(--text-primary) !important;
-          }
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-
-          .text-btn {
-            background: none;
-            border: none;
-            color: var(--accent-blue);
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-
-            &:hover {
-              background-color: rgba(0, 122, 255, 0.1);
-            }
-          }
-        }
-      }
-
-      .content-body {
-        flex: 1;
-        overflow: hidden;
-      }
     }
   }
 

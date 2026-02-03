@@ -32,6 +32,7 @@ declare module 'vue' {
     ImageGrid: typeof import('./src/components/image-grid/ImageGrid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SearchControl: typeof import('./src/components/gallery-controls/SearchControl.vue')['default']
     SelectionToolbar: typeof import('./src/components/gallery-controls/SelectionToolbar.vue')['default']
     SortControl: typeof import('./src/components/gallery-controls/SortControl.vue')['default']
     TagFilter: typeof import('./src/components/gallery-controls/TagFilter.vue')['default']
