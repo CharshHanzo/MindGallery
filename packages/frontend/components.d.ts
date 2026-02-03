@@ -28,9 +28,13 @@ declare module 'vue' {
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElUpload: typeof import('element-plus/es')['ElUpload']
+    ImageDetailDialog: typeof import('./src/components/gallery-controls/ImageDetailDialog.vue')['default']
     ImageGrid: typeof import('./src/components/image-grid/ImageGrid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SelectionToolbar: typeof import('./src/components/gallery-controls/SelectionToolbar.vue')['default']
+    SortControl: typeof import('./src/components/gallery-controls/SortControl.vue')['default']
+    TagFilter: typeof import('./src/components/gallery-controls/TagFilter.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

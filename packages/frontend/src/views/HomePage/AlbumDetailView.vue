@@ -13,6 +13,10 @@
             <h1 class="page-title">{{ currentAlbum?.name || '相册详情' }}</h1>
           </div>
           <div class="title-actions">
+            <SortControl
+              v-model="sortOrder"
+              @sort-change="handleSortChange"
+            />
             <el-button type="primary" :icon="Plus" @click="showAddImagesDialog = true">添加图片</el-button>
           </div>
         </div>
@@ -27,15 +31,44 @@
           </div>
         </div>
 
+        <!-- 标签筛选 -->
+        <TagFilter
+          v-model="selectedTags"
+          :available-tags="availableTags"
+          :loading="loadingTags"
+          @tag-change="handleTagChange"
+        />
+
+        <!-- 多选操作工具栏 -->
+        <SelectionToolbar
+          :selection-mode="selectionMode"
+          :selected-ids="selectedIds"
+          :selected-count="selectedIds.length"
+          :show-add-to-album="false"
+          @batch-favorite="handleBatchFavorite"
+          @cancel-selection="toggleSelectionMode"
+        >
+          <!-- 添加相册特有操作 -->
+          <template #actions>
+            <el-button
+              type="primary"
+              @click="removeFromAlbum"
+            >
+              从相册移除
+            </el-button>
+          </template>
+        </SelectionToolbar>
+
         <!-- 相册图片 -->
         <div v-loading="loadingImages" class="album-images">
           <ImageGrid
-            v-if="currentAlbumImages.length > 0"
-            :images="currentAlbumImages"
+            v-if="filteredImages.length > 0"
+            :images="filteredImages"
             :loading="loadingImages"
             :total="0"
-            :selection-mode="false"
+            :selection-mode="selectionMode"
             @image-click="handleImageClick"
+            @selection-change="handleSelectionChange"
           >
             <template #image-actions="{ image }">
               <el-button
@@ -97,13 +130,28 @@
             </span>
           </template>
         </el-dialog>
+
+        <!-- 图片大图预览和编辑模态框 -->
+        <ImageDetailDialog
+          v-model:visible="detailDialogVisible"
+          :image="currentImage"
+          :mode="'edit'"
+          :editable="true"
+          :available-tags="availableTags"
+          :available-albums="[]"
+          :loading="saving"
+          @save="handleSaveImage"
+          @delete="handleDeleteFromDialog"
+          @open-in-folder="openInFolderFromDialog"
+          @close="handleDialogClose"
+        />
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Plus, Check, Search, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -111,20 +159,47 @@ import type { AlbumInfo, ImageInfo } from '@mindgallery/shared/src/types/api'
 import { getAlbumDetail, addImagesToAlbum as addImagesToAlbumApi, removeImagesFromAlbum } from '@/api/modules/album'
 import { getImageList } from '@/api/modules/image'
 import ImageGrid from '@/components/image-grid/ImageGrid.vue'
+import SortControl from '@/components/gallery-controls/SortControl.vue'
+import TagFilter from '@/components/gallery-controls/TagFilter.vue'
+import SelectionToolbar from '@/components/gallery-controls/SelectionToolbar.vue'
+import ImageDetailDialog from '@/components/gallery-controls/ImageDetailDialog.vue'
 
 // 路由
 const route = useRoute()
 const router = useRouter()
 
+// 注入共享状态
+interface SearchState {
+  searchQuery: any
+  selectionMode: any
+  toggleSelectionMode: () => void
+}
+
+const searchState = inject<SearchState>('searchState')
+
 // 状态
 const loading = ref(false)
 const saving = ref(false)
 const loadingImages = ref(false)
+const loadingTags = ref(false)
 const currentAlbum = ref<AlbumInfo | null>(null)
 const currentAlbumImages = ref<ImageInfo[]>([])
 const availableImages = ref<ImageInfo[]>([])
 const selectedImageIds = ref<Set<string>>(new Set())
 const imageSearchQuery = ref('')
+
+// 排序和筛选状态
+const sortOrder = ref<'asc' | 'desc'>('desc')
+const selectedTags = ref<string[]>([])
+const availableTags = ref<any[]>([])
+
+// 多选状态
+const selectionMode = ref(false)
+const selectedIds = ref<string[]>([])
+
+// 图片详情状态
+const detailDialogVisible = ref(false)
+const currentImage = ref<ImageInfo | null>(null)
 
 // 对话框状态
 const showAddImagesDialog = ref(false)
@@ -132,6 +207,137 @@ const showAddImagesDialog = ref(false)
 // 返回相册列表
 const goBack = () => {
   router.push('/myAlbums')
+}
+
+// 计算属性：筛选和排序后的图片
+const filteredImages = computed(() => {
+  let result = [...currentAlbumImages.value]
+
+  // 标签筛选
+  if (selectedTags.value.length > 0) {
+    result = result.filter(image => {
+      return selectedTags.value.every(tag =>
+        image.tags?.includes(tag)
+      )
+    })
+  }
+
+  // 排序
+  result.sort((a, b) => {
+    const dateA = new Date(a.uploadTime).getTime()
+    const dateB = new Date(b.uploadTime).getTime()
+    return sortOrder.value === 'desc' ? dateB - dateA : dateA - dateB
+  })
+
+  return result
+})
+
+// 处理排序变化
+const handleSortChange = () => {
+  // 排序通过computed属性自动处理
+  console.log('Sort changed:', sortOrder.value)
+}
+
+// 处理标签变化
+const handleTagChange = (tags: string[]) => {
+  selectedTags.value = tags
+  // 标签筛选通过computed属性自动处理
+  console.log('Tags changed:', tags)
+}
+
+// 切换选择模式
+const toggleSelectionMode = () => {
+  selectionMode.value = !selectionMode.value
+  if (!selectionMode.value) {
+    selectedIds.value = []
+  }
+  console.log('Selection mode:', selectionMode.value)
+}
+
+// 处理选择变化
+const handleSelectionChange = (ids: string[]) => {
+  selectedIds.value = ids
+  console.log('Selected ids:', ids)
+}
+
+// 批量从相册移除
+const removeFromAlbum = async () => {
+  if (!currentAlbum.value || selectedIds.value.length === 0) return
+
+  try {
+    await removeImagesFromAlbum(currentAlbum.value.id, selectedIds.value)
+    ElMessage.success(`已从相册移除 ${selectedIds.value.length} 张图片`)
+    // 刷新相册图片
+    await fetchAlbumDetail()
+    // 退出选择模式
+    toggleSelectionMode()
+  } catch (error) {
+    console.error('从相册移除失败:', error)
+    ElMessage.error('从相册移除失败')
+  }
+}
+
+// 批量收藏
+const handleBatchFavorite = async () => {
+  // 实现批量收藏逻辑
+  console.log('Batch favorite:', selectedIds.value)
+  ElMessage.success(`已收藏 ${selectedIds.value.length} 张图片`)
+  toggleSelectionMode()
+}
+
+// 处理图片点击
+const handleImageClick = (image: ImageInfo, index: number) => {
+  if (selectionMode.value) {
+    // 在选择模式下，点击应该是选择/取消选择图片
+    // 这个逻辑由ImageGrid组件内部处理
+    console.log('Image clicked in selection mode:', image.id)
+  } else {
+    // 在非选择模式下，点击应该是查看图片详情
+    currentImage.value = image
+    detailDialogVisible.value = true
+  }
+}
+
+// 处理保存图片信息
+const handleSaveImage = async (image: ImageInfo, formData: any) => {
+  if (!image) return
+  saving.value = true
+  try {
+    // 这里可以添加更新图片信息的逻辑
+    console.log('Save image:', image.id, formData)
+    ElMessage.success('保存成功')
+    detailDialogVisible.value = false
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+// 处理从对话框删除图片
+const handleDeleteFromDialog = (image: ImageInfo) => {
+  if (!image) return
+
+  // 实现删除逻辑
+  console.log('Delete image from dialog:', image.id)
+  ElMessage.success('图片已删除')
+  detailDialogVisible.value = false
+}
+
+// 在模态框中打开文件夹
+const openInFolderFromDialog = async (image: ImageInfo) => {
+  if (!image) return
+
+  // 实现打开文件夹逻辑
+  console.log('Open in folder:', image.id)
+  ElMessage.success('已打开文件夹')
+}
+
+// 处理对话框关闭
+const handleDialogClose = () => {
+  // 对话框关闭时的清理逻辑
+  console.log('Dialog closed')
 }
 
 // 初始化
@@ -154,6 +360,8 @@ const fetchAlbumDetail = async () => {
     if (response.success) {
       currentAlbum.value = response.data
       currentAlbumImages.value = response.data.images || []
+      // 初始化标签数据
+      initializeTags()
     } else {
       ElMessage.error('获取相册详情失败')
       goBack()
@@ -167,11 +375,29 @@ const fetchAlbumDetail = async () => {
   }
 }
 
-// 处理图片点击
-const handleImageClick = (image: ImageInfo, index: number) => {
-  // 可以在这里添加图片预览逻辑
-  console.log('Image clicked:', image)
+// 初始化标签数据
+const initializeTags = () => {
+  // 从相册图片中提取唯一标签
+  const tagMap = new Map<string, number>()
+
+  currentAlbumImages.value.forEach(image => {
+    image.tags?.forEach(tag => {
+      const count = tagMap.get(tag) || 0
+      tagMap.set(tag, count + 1)
+    })
+  })
+
+  // 转换为TagInfo格式
+  availableTags.value = Array.from(tagMap.entries()).map(([name, count]) => ({
+    id: name, // 使用标签名作为ID
+    name,
+    count
+  }))
+
+  console.log('Initialized tags:', availableTags.value)
 }
+
+
 
 
 

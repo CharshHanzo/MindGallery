@@ -12,39 +12,32 @@
             </span>
           </h1>
 
-          <div class="sort-control" @click="toggleSortOrder">
-            <i class="fa-solid" :class="sortOrder === 'desc' ? 'fa-arrow-down-short-wide' : 'fa-arrow-up-wide-short'"></i>
-            <span>{{ sortOrder === 'desc' ? '最新在前' : '最早在前' }}</span>
-          </div>
+          <SortControl
+            v-model="sortOrder"
+            @sort-change="handleSortChange"
+          />
         </div>
 
         <div class="title-divider"></div>
 
         <!-- 标签筛选 -->
-        <div class="tag-filter" v-if="availableTags.length > 0">
-          <el-select
-            v-model="selectedTags"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="筛选标签"
-            class="tag-select"
-            @change="handleTagChange"
-            clearable
-          >
-            <el-option
-              v-for="tag in availableTags"
-              :key="tag.id"
-              :label="tag.name"
-              :value="tag.name"
-            >
-              <span style="float: left">{{ tag.name }}</span>
-              <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
-                {{ tag.count }}
-              </span>
-            </el-option>
-          </el-select>
-        </div>
+        <TagFilter
+          v-model="selectedTags"
+          :available-tags="availableTags"
+          :loading="false"
+          @tag-change="handleTagChange"
+        />
+
+        <!-- 多选操作工具栏 -->
+        <SelectionToolbar
+          :selection-mode="selectionMode"
+          :selected-ids="selectedImageIds"
+          :selected-count="selectedImageIds.length"
+          @batch-delete="deleteSelected"
+          @batch-favorite="handleBatchFavorite"
+          @show-add-to-album="showAddToAlbumDialog = true"
+          @cancel-selection="toggleSelectionMode"
+        />
 
         <!-- 图片列表 -->
         <ImageGrid
@@ -70,99 +63,19 @@
 
 
       <!-- 图片大图预览和编辑模态框 -->
-      <el-dialog
-        v-model="detailDialogVisible"
-        title="图片详情"
-        width="80%"
-        top="5vh"
-        destroy-on-close
-        class="image-detail-dialog"
-      >
-        <div class="detail-container" v-if="currentImage">
-          <!-- 左侧：大图展示 -->
-          <div class="detail-image-wrapper">
-            <el-image
-              :src="currentImage.url"
-              :alt="currentImage.filename"
-              fit="contain"
-              class="detail-image"
-              :preview-src-list="[currentImage.url]"
-            />
-          </div>
-
-          <!-- 右侧：编辑表单 -->
-          <div class="detail-form-wrapper">
-            <el-form :model="editingForm" label-position="top">
-              <el-form-item label="图片名称">
-                <el-input v-model="editingForm.filename" placeholder="请输入图片名称" />
-              </el-form-item>
-
-              <el-form-item label="描述">
-                <el-input
-                  v-model="editingForm.description"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入图片描述"
-                />
-              </el-form-item>
-
-              <el-form-item label="标签">
-                <el-select
-                  v-model="editingForm.tags"
-                  multiple
-                  filterable
-                  allow-create
-                  default-first-option
-                  placeholder="请选择或输入标签"
-                  style="width: 100%"
-                >
-                  <el-option
-                    v-for="tag in availableTags"
-                    :key="tag.id"
-                    :label="tag.name"
-                    :value="tag.name"
-                  />
-                </el-select>
-              </el-form-item>
-
-              <el-form-item label="相册">
-                <el-select
-                  v-model="editingForm.albumIds"
-                  multiple
-                  filterable
-                  placeholder="请选择相册"
-                  style="width: 100%"
-                >
-                  <el-option
-                    v-for="album in availableAlbums"
-                    :key="album.id"
-                    :label="album.name"
-                    :value="album.id"
-                  />
-                </el-select>
-              </el-form-item>
-
-              <div class="form-meta-info">
-                <p><strong>文件大小：</strong>{{ formatFileSize(currentImage.fileSize) }}</p>
-                <p><strong>上传时间：</strong>{{ new Date(currentImage.uploadTime).toLocaleString() }}</p>
-                <p v-if="currentImage.width"><strong>分辨率：</strong>{{ currentImage.width }} x {{ currentImage.height }}</p>
-              </div>
-            </el-form>
-          </div>
-        </div>
-        <template #footer>
-          <span class="dialog-footer">
-            <div class="left-actions">
-              <el-button type="primary" @click="openInFolderFromDialog" :icon="Folder">在文件夹中打开</el-button>
-              <el-button type="danger" @click="handleDeleteFromDialog" :icon="Delete">删除图片</el-button>
-            </div>
-            <div class="right-actions">
-              <el-button @click="detailDialogVisible = false">取消</el-button>
-              <el-button type="primary" @click="saveImageInfo" :loading="saving">保存修改</el-button>
-            </div>
-          </span>
-        </template>
-      </el-dialog>
+      <ImageDetailDialog
+        v-model:visible="detailDialogVisible"
+        :image="currentImage"
+        :mode="'edit'"
+        :editable="true"
+        :available-tags="availableTags"
+        :available-albums="availableAlbums"
+        :loading="saving"
+        @save="handleSaveImage"
+        @delete="handleDeleteFromDialog"
+        @open-in-folder="openInFolderFromDialog"
+        @close="handleDialogClose"
+      />
 
       <!-- 添加到相册对话框 -->
       <el-dialog
@@ -214,6 +127,10 @@ import { getTagList } from '@/api/modules/tag'
 import { getAlbumList, createAlbum, addImagesToAlbum, removeImagesFromAlbum } from '@/api/modules/album'
 import { universalApi } from '@/api'
 import ImageGrid from '@/components/image-grid/ImageGrid.vue'
+import SortControl from '@/components/gallery-controls/SortControl.vue'
+import TagFilter from '@/components/gallery-controls/TagFilter.vue'
+import SelectionToolbar from '@/components/gallery-controls/SelectionToolbar.vue'
+import ImageDetailDialog from '@/components/gallery-controls/ImageDetailDialog.vue'
 
 // 注入共享状态
 interface SearchState {
@@ -371,7 +288,7 @@ const getOrCreateFavoriteAlbum = async (): Promise<string> => {
 }
 
 // 事件处理
-const handleTagChange = () => {
+const handleTagChange = (tags: string[]) => {
   page.value = 1
   fetchImages()
 }
@@ -555,14 +472,44 @@ const handleAddToAlbum = async () => {
 // 预览图片
 const previewImage = (image: ImageInfo, index: number) => {
   currentImage.value = image
-
-  // 初始化表单数据
-  editingForm.filename = image.filename
-  editingForm.description = image.description || ''
-  editingForm.tags = image.tags ? [...image.tags] : []
-  editingForm.albumIds = image.albums ? image.albums.map(album => album.id) : []
-
   detailDialogVisible.value = true
+}
+
+// 处理保存图片信息
+const handleSaveImage = async (image: ImageInfo, formData: any) => {
+  if (!image) return
+  saving.value = true
+  try {
+    const response = await updateImageInfo(image.id, {
+      filename: formData.filename,
+      description: formData.description,
+      tags: formData.tags,
+      albumIds: formData.albumIds
+    })
+
+    if (response.success) {
+      ElMessage.success('保存成功')
+      detailDialogVisible.value = false
+      // 更新列表中的数据
+      const index = images.value.findIndex(img => img.id === image.id)
+      if (index !== -1) {
+        images.value[index] = { ...images.value[index], ...response.data }
+      }
+      // 刷新标签列表，因为可能有新标签创建
+      fetchTags()
+    }
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+// 处理对话框关闭
+const handleDialogClose = () => {
+  // 对话框关闭时的清理逻辑
+  console.log('Dialog closed')
 }
 
 // 存储选中的图片ID
@@ -638,11 +585,11 @@ const handleDelete = (image: ImageInfo) => {
   })
 }
 
-const handleDeleteFromDialog = () => {
-  if (!currentImage.value) return
+const handleDeleteFromDialog = (image: ImageInfo) => {
+  if (!image) return
 
   ElMessageBox.confirm(
-    `确定要删除图片 "${currentImage.value.filename}" 吗？此操作不可恢复。`,
+    `确定要删除图片 "${image.filename}" 吗？此操作不可恢复。`,
     '删除确认',
     {
       confirmButtonText: '删除',
@@ -651,12 +598,12 @@ const handleDeleteFromDialog = () => {
     }
   ).then(async () => {
     try {
-      await deleteImage(currentImage.value!.id)
+      await deleteImage(image.id)
       ElMessage.success('删除成功')
       // 关闭对话框
       detailDialogVisible.value = false
       // 从列表中移除
-      images.value = images.value.filter(item => item.id !== currentImage.value!.id)
+      images.value = images.value.filter(item => item.id !== image.id)
       total.value--
       currentImage.value = null
     } catch (error) {
@@ -669,10 +616,10 @@ const handleDeleteFromDialog = () => {
 }
 
 // 在模态框中打开文件夹
-const openInFolderFromDialog = async () => {
-  if (!currentImage.value) return
+const openInFolderFromDialog = async (image: ImageInfo) => {
+  if (!image) return
 
-  await openInFolder(currentImage.value)
+  await openInFolder(image)
 }
 
 // 在文件夹中打开图片
